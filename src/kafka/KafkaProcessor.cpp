@@ -52,7 +52,6 @@ KafkaProcessor::~KafkaProcessor() {
     if (lagUpdateThread.joinable()) lagUpdateThread.join();
 }
 
-
 void KafkaProcessor::addFilter(const FilterEntry& filter) {
     std::lock_guard<std::mutex> lock(filterMutex);
     filters.push_back(filter);
@@ -121,15 +120,15 @@ std::unordered_map<std::string, std::vector<std::string>> KafkaProcessor::proces
         MetricsExporter::getInstance().setMetric("kafka_lag_ms", lagMs, {{"table", tableKey}});
         {
             std::lock_guard<std::mutex> lock(lagMutex);
-	    const size_t MAX_LAG_SAMPLES = 1000;
-	    if (kafkaLagTableMs[tableKey].size() >= MAX_LAG_SAMPLES) {
-	        kafkaLagTableMs[tableKey].erase(kafkaLagTableMs[tableKey].begin());
-	    }
+	          const size_t MAX_LAG_SAMPLES = 1000;
+	          if (kafkaLagTableMs[tableKey].size() >= MAX_LAG_SAMPLES) {
+	            kafkaLagTableMs[tableKey].erase(kafkaLagTableMs[tableKey].begin());
+	          }
             kafkaLagTableMs[tableKey].push_back(lagMs);
 
-	    if (kafkaLagByPartition[{kafkaTopic, partition}].size() >= MAX_LAG_SAMPLES) {
-		kafkaLagByPartition[{kafkaTopic, partition}].erase(kafkaLagByPartition[{kafkaTopic, partition}].begin());
-	    }
+	          if (kafkaLagByPartition[{kafkaTopic, partition}].size() >= MAX_LAG_SAMPLES) {
+		          kafkaLagByPartition[{kafkaTopic, partition}].erase(kafkaLagByPartition[{kafkaTopic, partition}].begin());
+	          }
             kafkaLagByPartition[{kafkaTopic, partition}].push_back(lagMs);
         }*/
 	// Kafka lag tracking
@@ -208,7 +207,7 @@ std::unordered_map<std::string, std::vector<std::string>> KafkaProcessor::proces
                     if (it != recentGlobalPKCache.end()) {
                         auto age = std::chrono::duration_cast<std::chrono::seconds>(now - it->second).count();
                         if (age < 60) {
-			    Logger::warn("🔁 Skipped replayed message with dedupKey: " + dedupKey);
+			                      Logger::warn("🔁 Skipped replayed message with dedupKey: " + dedupKey);
                             continue;
                         }
                     }
@@ -239,12 +238,12 @@ std::unordered_map<std::string, std::vector<std::string>> KafkaProcessor::proces
 
         } else if (op == "u" && record.HasMember("after")) {
             //sql = buildUpdateSQL(mappedOwner, mappedTable, record["after"], filter->primaryKey);
-	    sql = sqlBuilders["oracle"]->buildUpdateSQL(mappedOwner, mappedTable, record["after"], filter->primaryKey);
+	          sql = sqlBuilders["oracle"]->buildUpdateSQL(mappedOwner, mappedTable, record["after"], filter->primaryKey);
             opType = "update";
 
         } else if (op == "d" && record.HasMember("before")) {
             //sql = buildDeleteSQL(mappedOwner, mappedTable, record["before"], filter->primaryKey);
-	    sql = sqlBuilders["oracle"]->buildDeleteSQL(mappedOwner, mappedTable, record["before"], filter->primaryKey);
+	          sql = sqlBuilders["oracle"]->buildDeleteSQL(mappedOwner, mappedTable, record["before"], filter->primaryKey);
             opType = "delete";
         }
 
@@ -264,125 +263,6 @@ std::unordered_map<std::string, std::vector<std::string>> KafkaProcessor::proces
 
     return batchMap;
 }
-
-/*
-std::unordered_map<std::string, std::vector<std::string>> KafkaProcessor::processMessageByTable(const std::string& jsonMessage, int partition, int64_t offset, int64_t timestamp) {
-    (void)partition;
-    (void)offset;
-    (void)timestamp;
-
-    std::unordered_map<std::string, std::vector<std::string>> batchMap;
-    rapidjson::Document doc;
-    if (doc.Parse(jsonMessage.c_str()).HasParseError()) {
-        LOG_ERROR("KafkaProcessor: JSON parse error");
-        return batchMap;
-    }
-    if (!doc.HasMember("payload") || !doc["payload"].IsArray()) return batchMap;
-    const auto& payload = doc["payload"];
-
-    auto now = std::chrono::steady_clock::now();
-    std::lock_guard<std::mutex> lock(dedupMutex);
-    std::unordered_map<std::string, std::unordered_set<std::string>> batchDedupCache;
-
-    for (auto& record : payload.GetArray()) {
-        if (!record.HasMember("schema")) continue;
-        const auto& schema = record["schema"];
-        if (!schema.HasMember("owner") || !schema.HasMember("table")) continue;
-
-        std::string owner = schema["owner"].GetString();
-        std::string table = schema["table"].GetString();
-
-        auto filter = matchFilter(owner, table);
-        if (!filter.has_value()) continue;
-
-        std::string mappedOwner = mapping.count(owner) ? mapping[owner] : owner;
-        std::string mappedTable = mapping.count(table) ? mapping[table] : table;
-        std::string tableKey = mappedOwner + "." + mappedTable;
-	auto nowSystem = std::chrono::system_clock::now();
-	auto messageTime = std::chrono::system_clock::time_point{std::chrono::milliseconds(timestamp)};
-	auto lagMs = std::chrono::duration_cast<std::chrono::milliseconds>(nowSystem - messageTime).count();
-
-	MetricsExporter::getInstance().setMetric("kafka_lag_ms", lagMs, {{"table", tableKey}});
-	//MetricsExporter::getInstance().setMetric("kafka_lag_ms", lagMs, {{"table", tableKey}, {"partition", std::to_string(partition)}});
-
-	{
-	    std::lock_guard<std::mutex> lock(lagMutex);
-	    kafkaLagTableMs[tableKey].push_back(lagMs);
-	    kafkaLagByPartition[{kafkaTopic, partition}].push_back(lagMs);
-	}
-
-        if (!record.HasMember("op") || !record["op"].IsString()) continue;
-        std::string op = record["op"].GetString();
-
-        std::string sql;
-	std::string opType;
-        if (op == "c" && record.HasMember("after")) {
-            const auto& data = record["after"];
-            if (data.HasMember(filter->primaryKey.c_str())) {
-                std::string pkValue = SQLUtils::convertToSQLValue(data[filter->primaryKey.c_str()], filter->primaryKey);
-                std::string dedupKey = tableKey + ":" + pkValue;
-
-		// ✅ Check trùng trong batch hiện tại
-                if (batchDedupCache[tableKey].count(dedupKey)) {
-                    continue;  // Skip nếu đã xử lý trong batch
-                }
-                batchDedupCache[tableKey].insert(dedupKey);
-
-		// ✅ 2. Check duplicate toàn cục (Kafka resend)
-		{
-		    std::lock_guard<std::mutex> gLock(globalCacheMutex);
-		    auto it = recentGlobalPKCache.find(dedupKey);
-		    if (it != recentGlobalPKCache.end()) {
-	 	        auto age = std::chrono::duration_cast<std::chrono::seconds>(now - it->second).count();
-        		if (age < 60) {
-            		   // 🟡 Ghi log ở đây!
-            		   //LOG_WARNING("🔁 Skipped replayed message with dedupKey: " + dedupKey);
-			   LOG_WARNING("🔁 Skipped replayed message with dedupKey: " + dedupKey +
-            				", table=" + tableKey +
-            		   		", op=insert, Kafka timestamp=" + std::to_string(timestamp));
-            		   continue;
-        		}
-    		    }
-    		   recentGlobalPKCache[dedupKey] = now;
-	       }
-
-                auto& tableCache = recentPrimaryKeyCachePerTable[tableKey];
-                for (auto it = tableCache.begin(); it != tableCache.end();) {
-                    if (std::chrono::duration_cast<std::chrono::seconds>(now - it->second).count() >= 10) {
-                        it = tableCache.erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
-
-                if (tableCache.find(dedupKey) != tableCache.end()) {
-                    continue; // duplicate insert
-                }
-                tableCache[dedupKey] = now;
-            }
-            sql = buildInsertSQL(mappedOwner, mappedTable, data);
-	    opType = "insert";
-        } else if (op == "u" && record.HasMember("after")) {
-            sql = buildUpdateSQL(mappedOwner, mappedTable, record["after"], filter->primaryKey);
-	    opType = "update";
-        } else if (op == "d" && record.HasMember("before")) {
-            sql = buildDeleteSQL(mappedOwner, mappedTable, record["before"], filter->primaryKey);
-	    opType = "delete";
-        }
-
-        if (!sql.empty()) {
-            batchMap[tableKey].push_back(sql);
-            MetricsExporter::getInstance().incrementCounter("kafka_messages_processed");
-            MetricsExporter::getInstance().incrementCounter("kafka_ops_total", {
-                {"table", tableKey},
-                {"op", opType}
-            });
-
-            messagesProcessed.fetch_add(1, std::memory_order_relaxed);
-        }
-    }
-    return batchMap;
-}*/
 
 void KafkaProcessor::updateProcessingRate() {
     while (!stopReloading) {
@@ -432,271 +312,6 @@ void KafkaProcessor::loadFilterConfig(const std::string& configPath) {
 bool KafkaProcessor::isCurrentlyReloading() {
     return isReloading.load();
 }
-//nay chua co auto-load schema
-/*void KafkaProcessor::startAutoReload(const std::string& configPath) {
-    reloadThread = std::thread([this, configPath]() {
-        while (!stopReloading) {
-            std::this_thread::sleep_for(std::chrono::seconds(15));
-            std::lock_guard<std::mutex> lock(filterReloadMutex);
-            if (isReloading.exchange(true)) continue;
-
-            auto newMod = fs::last_write_time(configPath);
-            if (newMod != lastModifiedTime) {
-                LOG_INFO("Reloading filter config...");
-                loadFilterConfig(configPath);
-            }
-            isReloading.store(false);
-        }
-    });
-}*/
-
-//auto-load schema
-/*
-void KafkaProcessor::startAutoReload(const std::string& configPath) {
-    stopReloading = false;
-    reloadThread = std::thread([this, configPath]() {
-        while (!stopReloading) {
-            std::this_thread::sleep_for(std::chrono::seconds(120));
-
-            std::lock_guard<std::mutex> lock(filterReloadMutex);
-
-            //std::filesystem::file_time_type currentModifiedTime = std::filesystem::last_write_time(configPath);
-            //if (currentModifiedTime != lastModifiedTime) {
-	    
-	    auto currentModifiedTime = std::filesystem::last_write_time(configPath);
-
-	    //So sánh với độ chính xác 1s để tránh false positive do rounding (trên một số hệ thống)
-	    auto diff = std::chrono::duration_cast<std::chrono::seconds>(currentModifiedTime - lastModifiedTime).count();
-	    if (diff != 0) {
-	    	Logger::info("🔁 Detected change in filter config. Reloading...");
-                isReloading = true;
-
-                if (FilterConfigLoader::getInstance().loadConfig(configPath)) {
-                    const auto& newFilters = FilterConfigLoader::getInstance().getAllFilters();
-
-                    // So sánh với filters cũ đã load trước đó
-                    std::unordered_set<std::string> existingTables;
-                    for (const auto& f : filters) {
-                        existingTables.insert(f.owner + "." + f.table);
-                    }
-
-                    // Thêm bảng mới và load schema nếu cần
-                    for (const auto& f : newFilters) {
-                        std::string fullTable = f.owner + "." + f.table;
-                        if (existingTables.find(fullTable) == existingTables.end()) {
-				            Logger::info("🆕 New table detected in config: " + fullTable + " → loading schema...");
-                            OracleSchemaCache::getInstance().loadSchemaIfNeeded(fullTable, config);
-                        }
-                        addFilter(f);  // Cập nhật vào filters
-                    }
-
-                    filters = newFilters;
-                    lastModifiedTime = currentModifiedTime;
-                } else {
-			        Logger::error("❌ Failed to reload filter config.");
-                }
-
-                isReloading = false;
-            }
-        }
-    });
-}*/
-/*
-void KafkaProcessor::startAutoReload(const std::string& configPath) {
-    stopReloading = false;
-    reloadThread = std::thread([this, configPath]() {
-        // Khởi tạo inotify
-        int inotifyFd = inotify_init();
-        if (inotifyFd < 0) {
-            Logger::error("❌ Failed to initialize inotify: " + std::string(strerror(errno)));
-            return;
-        }
-
-        // Thêm watch cho file configPath
-        int wd = inotify_add_watch(inotifyFd, configPath.c_str(), IN_MODIFY | IN_DELETE | IN_MOVED_TO);
-        if (wd < 0) {
-            Logger::error("❌ Failed to add inotify watch for " + configPath + ": " + std::string(strerror(errno)));
-            close(inotifyFd);
-            return;
-        }
-
-        // Buffer để đọc sự kiện inotify
-        constexpr size_t EVENT_BUF_LEN = sizeof(struct inotify_event) + 16;
-        char buffer[EVENT_BUF_LEN];
-
-        while (!stopReloading) {
-            // Đọc sự kiện từ inotify
-            ssize_t length = read(inotifyFd, buffer, EVENT_BUF_LEN);
-            if (length < 0) {
-                if (errno == EINTR) continue; // Bị gián đoạn, thử lại
-                Logger::error("❌ Error reading inotify events: " + std::string(strerror(errno)));
-                break;
-            }
-
-            // Xử lý các sự kiện
-            for (char* ptr = buffer; ptr < buffer + length;) {
-                struct inotify_event* event = reinterpret_cast<struct inotify_event*>(ptr);
-                if (event->mask & (IN_MODIFY | IN_DELETE | IN_MOVED_TO)) {
-                    std::lock_guard<std::mutex> lock(filterReloadMutex);
-
-                    Logger::info("🔁 Detected change in filter config. Reloading...");
-                    isReloading = true;
-
-                    if (FilterConfigLoader::getInstance().loadConfig(configPath)) {
-                        const auto& newFilters = FilterConfigLoader::getInstance().getAllFilters();
-
-                        // Tạo tập hợp các bảng mới
-                        std::unordered_set<std::string> newTables;
-                        for (const auto& f : newFilters) {
-                            newTables.insert(f.owner + "." + f.table);
-                        }
-
-                        // Tạo tập hợp các bảng hiện tại
-                        std::unordered_set<std::string> existingTables;
-                        for (const auto& f : filters) {
-                            existingTables.insert(f.owner + "." + f.table);
-                        }
-
-                        // Xóa các bảng không còn trong newFilters và dọn dẹp schema
-                        std::vector<FilterEntry> updatedFilters;
-                        for (const auto& f : filters) {
-                            std::string fullTable = f.owner + "." + f.table;
-                            if (newTables.find(fullTable) != newTables.end()) {
-                                updatedFilters.push_back(f); // Giữ lại bộ lọc nếu bảng vẫn tồn tại
-                            } else {
-                                Logger::info("🗑️ Table removed from config: " + fullTable + " → removing schema from cache...");
-                                try {
-                                    OracleSchemaCache::getInstance().removeSchema(fullTable);
-                                } catch (const std::exception& e) {
-                                    Logger::error("❌ Failed to remove schema for " + fullTable + ": " + e.what());
-                                }
-                            }
-                        }
-
-                        // Thêm bảng mới và load schema nếu cần
-                        for (const auto& f : newFilters) {
-                            std::string fullTable = f.owner + "." + f.table;
-                            if (existingTables.find(fullTable) == existingTables.end()) {
-                                Logger::info("🆕 New table detected in config: " + fullTable + " → loading schema...");
-                                try {
-                                    OracleSchemaCache::getInstance().loadSchemaIfNeeded(fullTable, config);
-                                } catch (const std::exception& e) {
-                                    Logger::error("❌ Failed to load schema for " + fullTable + ": " + e.what());
-                                }
-                            }
-                            updatedFilters.push_back(f); // Thêm bộ lọc mới
-                        }
-
-                        // Cập nhật danh sách filters
-                        filters = std::move(updatedFilters);
-                        lastModifiedTime = std::filesystem::last_write_time(configPath); // Cập nhật thời gian mới nhất
-                    } else {
-                        Logger::error("❌ Failed to reload filter config.");
-                    }
-
-                    isReloading = false;
-                }
-                ptr += sizeof(struct inotify_event) + event->len;
-            }
-        }
-
-        // Dọn dẹp
-        inotify_rm_watch(inotifyFd, wd);
-        close(inotifyFd);
-    });
-}
-*/
-/*void KafkaProcessor::startAutoReload(const std::string& configPath) {
-    stopReloading = false;
-
-    reloadThread = std::thread([this, configPath]() {
-        Logger::info("🔎 KafkaProcessor watching file changes: " + configPath);
-
-        FileWatcher::watchFile(configPath, [this, configPath]() {
-            std::lock_guard<std::mutex> lock(filterReloadMutex);
-
-            if (isReloading.exchange(true)) {
-                Logger::warn("⚠️ KafkaProcessor is already reloading, skip this change.");
-                return;
-            }
-
-            Logger::info("🔁 KafkaProcessor detected change in filter config: " + configPath);
-
-            if (FilterConfigLoader::getInstance().loadConfig(configPath)) {
-                const auto& newFilters = FilterConfigLoader::getInstance().getAllFilters();
-
-                // So sánh với filters cũ để phát hiện bảng mới
-                std::unordered_set<std::string> existingTables;
-                {
-                    std::lock_guard<std::mutex> filtersLock(filterMutex);
-                    for (const auto& f : filters) {
-                        existingTables.insert(f.owner + "." + f.table);
-                    }
-                }
-
-                for (const auto& f : newFilters) {
-                    std::string fullTable = f.owner + "." + f.table;
-                    if (existingTables.find(fullTable) == existingTables.end()) {
-                        Logger::info("🆕 New table detected in config: " + fullTable + " → loading schema...");
-                        OracleSchemaCache::getInstance().loadSchemaIfNeeded(fullTable, config);
-                    }
-                }
-
-                {
-                    std::lock_guard<std::mutex> filtersLock(filterMutex);
-                    filters = newFilters;
-                }
-
-                Logger::info("✅ KafkaProcessor successfully reloaded filter config.");
-            } else {
-                Logger::error("❌ KafkaProcessor failed to reload filter config: " + configPath);
-            }
-
-            isReloading = false;
-        }, stopReloading  shutdown flag );
-    });
-}*/
-/*void KafkaProcessor::startAutoReload(const std::string& configPath) {
-    stopReloading = false;
-    reloadThread = std::thread([this, configPath]() {
-        FileWatcher::watchFile(configPath, [this, configPath]() {
-            std::lock_guard<std::mutex> lock(filterReloadMutex);
-            isReloading = true;
-
-            Logger::info("🔁 KafkaProcessor detected change in filter config: " + configPath);
-
-            if (FilterConfigLoader::getInstance().loadConfig(configPath)) {
-                const auto& newFilters = FilterConfigLoader::getInstance().getAllFilters();
-                std::unordered_set<std::string> existingTables;
-                {
-                    std::lock_guard<std::mutex> lock(filterMutex);
-                    for (const auto& f : filters) {
-                        existingTables.insert(f.owner + "." + f.table);
-                    }
-                }
-
-                for (const auto& f : newFilters) {
-                    std::string fullTable = f.owner + "." + f.table;
-                    if (existingTables.find(fullTable) == existingTables.end()) {
-                        Logger::info("🆕 New table detected: " + fullTable + " → loading schema...");
-                        OracleSchemaCache::getInstance().loadSchemaIfNeeded(fullTable, config);
-                    }
-                }
-
-                {
-                    std::lock_guard<std::mutex> lock(filterMutex);
-                    filters = newFilters;
-                }
-
-                Logger::info("✅ KafkaProcessor successfully reloaded filter config.");
-            } else {
-                Logger::error("❌ KafkaProcessor failed to reload filter config.");
-            }
-
-            isReloading = false;
-        }, stopReloading);
-    });
-}*/
 
 void KafkaProcessor::startAutoReload(const std::string& configPath, KafkaConsumer* consumer) {
     stopReloading = false;
@@ -739,8 +354,6 @@ void KafkaProcessor::startAutoReload(const std::string& configPath, KafkaConsume
         }, stopReloading);
     });
 }
-
-
 
 size_t KafkaProcessor::estimateDedupCacheMemory() {
     size_t total = 0;
@@ -858,7 +471,7 @@ void KafkaProcessor::startDedupCleanup() {
                     }
                 }
                 size_t after = cache.size();
-		//Logger::info("Global dedup cache size: " + std::to_string(recentGlobalPKCache.size()));
+		            //Logger::info("Global dedup cache size: " + std::to_string(recentGlobalPKCache.size()));
                 MetricsExporter::getInstance().setMetric("dedup_cache_size", after, {{"table", table}});
             }
         }
@@ -875,7 +488,6 @@ void KafkaProcessor::stopDedupCleanup() {
 std::string KafkaProcessor::getPKIndexHint(const std::string& schema, const std::string& table) {
     return FilterConfigLoader::getInstance().getPKIndex(schema + "." + table);
 }
-
 
 void KafkaProcessor::startGlobalDedupCleanup() {
     stopGlobalCleanup = false;
@@ -941,21 +553,6 @@ void KafkaProcessor::clearLagBuffers() {
     MetricsExporter::getInstance().incrementCounter("kafka_lag_buffer_clear_total");
 }
 
-
-/*void KafkaProcessor::shrinkLagBuffers(const std::string& tableKey, const std::pair<std::string, int>& tp) {
-    const size_t MAX_LAG_SAMPLES = 1000;
-
-    auto& tableVec = kafkaLagTableMs[tableKey];
-    if (tableVec.size() > MAX_LAG_SAMPLES) {
-        tableVec.erase(tableVec.begin(), tableVec.begin() + (tableVec.size() - MAX_LAG_SAMPLES));
-    }
-
-    auto& partVec = kafkaLagByPartition[tp];
-    if (partVec.size() > MAX_LAG_SAMPLES) {
-        partVec.erase(partVec.begin(), partVec.begin() + (partVec.size() - MAX_LAG_SAMPLES));
-    }
-}*/
-
 void KafkaProcessor::shrinkLagBuffers(int maxAgeSeconds) {
     std::lock_guard<std::mutex> lock(lagMutex);
 
@@ -981,35 +578,6 @@ void KafkaProcessor::shrinkLagBuffers(int maxAgeSeconds) {
                      + std::to_string(maxAgeSeconds) + "s");
     }
 }
-
-/*void KafkaProcessor::shrinkLagBuffers(int maxAgeSeconds) {
-    std::lock_guard<std::mutex> lock(lagMutex);
-    auto now = std::chrono::steady_clock::now();
-    int removed = 0;
-
-    for (auto it = kafkaLagTableMs.begin(); it != kafkaLagTableMs.end();) {
-        if (it->second.empty()) {
-            it = kafkaLagTableMs.erase(it);
-            removed++;
-        } else {
-            ++it;
-        }
-    }
-
-    for (auto it = kafkaLagByPartition.begin(); it != kafkaLagByPartition.end();) {
-        if (it->second.empty()) {
-            it = kafkaLagByPartition.erase(it);
-            removed++;
-        } else {
-            ++it;
-        }
-    }
-
-    if (removed > 0) {
-        Logger::info("🧹 Shrinked Kafka lag buffers. Removed entries: " + std::to_string(removed));
-        MetricsExporter::getInstance().incrementCounter("kafka_lag_buffer_shrink_total", {}, removed);
-    }
-}*/
 
 void KafkaProcessor::registerSQLBuilder(const std::string& dbType, std::unique_ptr<SQLBuilderBase> builder) {
     sqlBuilders[dbType] = std::move(builder);
