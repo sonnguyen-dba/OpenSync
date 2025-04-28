@@ -19,12 +19,24 @@ include_directories(
 # ✅ Include directories for source organization
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/app
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/config
+    ${CMAKE_CURRENT_SOURCE_DIR}/db/oracle
+    ${CMAKE_CURRENT_SOURCE_DIR}/dbconnector
+    ${CMAKE_CURRENT_SOURCE_DIR}/exception
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
     ${CMAKE_CURRENT_SOURCE_DIR}/kafka
-    ${CMAKE_CURRENT_SOURCE_DIR}/db
-    ${CMAKE_CURRENT_SOURCE_DIR}/sql
-    ${CMAKE_CURRENT_SOURCE_DIR}/data
+    ${CMAKE_CURRENT_SOURCE_DIR}/logger
+    ${CMAKE_CURRENT_SOURCE_DIR}/metrics
+    ${CMAKE_CURRENT_SOURCE_DIR}/monitor
+    ${CMAKE_CURRENT_SOURCE_DIR}/schema
+    ${CMAKE_CURRENT_SOURCE_DIR}/sqlbuilder
+    ${CMAKE_CURRENT_SOURCE_DIR}/thread
+    ${CMAKE_CURRENT_SOURCE_DIR}/time
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils
+    ${CMAKE_CURRENT_SOURCE_DIR}/WriteDataToDB
+    ${CMAKE_CURRENT_SOURCE_DIR}/writer
 )
 
 # ✅ External library directories
@@ -36,34 +48,52 @@ link_directories(
 # Define source files by directory
 # Main files
 file(GLOB MAIN_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-
-# Core files
-file(GLOB CORE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp")
-
-# Config files
+file(GLOB APP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp")
+file(GLOB COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/common/*.cpp")
 file(GLOB CONFIG_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/config/*.cpp")
-
-# Kafka files
+file(GLOB DB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/db/oracle/*.cpp")
+file(GLOB DBCONNECT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/dbconnector/*.cpp")
+file(GLOB EXCEPT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/exception/*.cpp")
+file(GLOB EXTEN_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/external/*.cpp")
 file(GLOB KAFKA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/kafka/*.cpp")
-
-# DB files
-file(GLOB DB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/db/*.cpp")
-
-# SQL files
-file(GLOB SQL_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/sql/*.cpp")
-
-# Data processing files
-file(GLOB DATA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/data/*.cpp")
+file(GLOB LOGGER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/logger/*.cpp")
+file(GLOB METRICS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metrics/*.cpp")
+file(GLOB MONITOR_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/monitor/*.cpp")
+file(GLOB SCHEMA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/schema/*.cpp")
+file(GLOB SQLBUILDER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/sqlbuilder/*.cpp")
+file(GLOB THREAD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/thread/*.cpp")
+file(GLOB DBTHREAD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/thread/dbwriterthread/*.cpp")
+file(GLOB WTHREAD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/thread/workerthread/*.cpp")
+file(GLOB MTHREAD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/thread/monitorthread/*.cpp")
+file(GLOB TIME_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/time/*.cpp")
+file(GLOB UTILS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cpp")
+file(GLOB WRITEDATATODB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/WriteDataToDB/*.cpp")
+file(GLOB WRITER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/writer/*.cpp")
 
 # ✅ Combine all sources
 set(ALL_SOURCES
     ${MAIN_SOURCES}
-    ${CORE_SOURCES}
+    ${APP_SOURCES}
+    ${COMMON_SOURCES}
     ${CONFIG_SOURCES}
-    ${KAFKA_SOURCES}
     ${DB_SOURCES}
-    ${SQL_SOURCES}
-    ${DATA_SOURCES}
+    ${DBCONNECT_SOURCES}
+    ${EXCEPT_SOURCES}
+    ${EXTEN_SOURCES}
+    ${KAFKA_SOURCES}
+    ${LOGGER_SOURCES}
+    ${METRICS_SOURCES}
+    ${MONITOR_SOURCES}
+    ${SCHEMA_SOURCES}
+    ${SQLBUILDER_SOURCES}
+    ${THREAD_SOURCES}
+    ${DBTHREAD_SOURCES}
+    ${WTHREAD_SOURCES}
+    ${MTHREAD_SOURCES}
+    ${TIME_SOURCES}
+    ${UTILS_SOURCES}
+    ${WRITEDATATODB_SOURCES}
+    ${WRITER_SOURCES}
 )
 
 # ✅ Output to bin/
@@ -73,14 +103,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_executable(OpenSync ${ALL_SOURCES})
 
 # ✅ Link libraries
-target_link_libraries(OpenSync
-    pq
-    rdkafka
-    pthread
-    stdc++fs
-    z
-    dl
-)
+target_link_libraries(OpenSync occi clntsh rdkafka pq pthread stdc++fs)
 
 # ✅ Convenience: custom "run" target
 add_custom_target(run
