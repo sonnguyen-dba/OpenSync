@@ -81,7 +81,7 @@ void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atom
     while (kafkaMessageQueue.try_pop(itemLeft)) {
         auto& [message, partition, offset, timestamp, rawMsg] = itemLeft;
         auto batchMap = processor.processMessageByTable(message, partition, offset, timestamp);
-        auto now = std::chrono::steady_clock::now();
+        //auto now = std::chrono::steady_clock::now();
         for (auto& [tableKey, sqls] : batchMap) {
             auto& batch = batches[tableKey];
             for (auto& sql : sqls) {
@@ -106,4 +106,3 @@ void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atom
 
     Logger::info("✅ Worker thread stopped cleanly.");
 }
-
