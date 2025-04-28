@@ -1,2 +1,2 @@
 # OpenSync
-Sync data from kafka to db
+Sync data from Kafka to databases.
