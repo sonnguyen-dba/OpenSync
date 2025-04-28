@@ -1,0 +1,56 @@
+#include "MySQLConnector.h"
+#include <iostream>
+
+MySQLConnector::MySQLConnector(const std::string& host, int port, 
+                               const std::string& user, const std::string& password,
+                               const std::string& database) 
+    : host(host), port(port), user(user), password(password), database(database), driver(nullptr), conn(nullptr) {}
+
+MySQLConnector::~MySQLConnector() {
+    disconnect();
+}
+
+bool MySQLConnector::connect() {
+    try {
+        driver = sql::mysql::get_mysql_driver_instance();
+        conn = driver->connect("tcp://" + host + ":" + std::to_string(port), user, password);
+        conn->setSchema(database);
+        std::cout << "Connected to MySQL successfully!" << std::endl;
+        return true;
+    } catch (sql::SQLException& e) {
+        std::cerr << "MySQL connection failed: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+void MySQLConnector::disconnect() {
+    if (conn) {
+        delete conn;
+        conn = nullptr;
+    }
+}
+
+bool MySQLConnector::isConnected() {
+    return conn != nullptr;
+}
+
+bool MySQLConnector::executeQuery(const std::string& sql) {
+    if (!isConnected()) return false;
+
+    try {
+        std::unique_ptr<sql::Statement> stmt(conn->createStatement());
+        stmt->execute(sql);
+        return true;
+    } catch (sql::SQLException& e) {
+        std::cerr << "MySQL query failed: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool MySQLConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch) {
+    for (const auto& sql : sqlBatch) {
+        if (!executeQuery(sql)) return false;
+    }
+    return true;
+}
+

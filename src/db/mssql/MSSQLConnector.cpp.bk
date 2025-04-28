@@ -1,0 +1,59 @@
+#include "MSSQLConnector.h"
+#include <iostream>
+
+MSSQLConnector::MSSQLConnector(const std::string& connectionString)
+    : connectionString(connectionString), hEnv(nullptr), hDbc(nullptr) {}
+
+MSSQLConnector::~MSSQLConnector() {
+    disconnect();
+}
+
+bool MSSQLConnector::connect() {
+    SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &hEnv);
+    SQLSetEnvAttr(hEnv, SQL_ATTR_ODBC_VERSION, (void*)SQL_OV_ODBC3, 0);
+    SQLAllocHandle(SQL_HANDLE_DBC, hEnv, &hDbc);
+    
+    SQLCHAR outConnStr[1024];
+    SQLSMALLINT outConnStrLen;
+    SQLRETURN ret = SQLDriverConnect(hDbc, nullptr, (SQLCHAR*)connectionString.c_str(),
+                                     SQL_NTS, outConnStr, sizeof(outConnStr), &outConnStrLen, SQL_DRIVER_NOPROMPT);
+
+    if (SQL_SUCCEEDED(ret)) {
+        std::cout << "Connected to MSSQL successfully!" << std::endl;
+        return true;
+    }
+
+    std::cerr << "MSSQL connection failed!" << std::endl;
+    return false;
+}
+
+void MSSQLConnector::disconnect() {
+    if (hDbc) {
+        SQLDisconnect(hDbc);
+        SQLFreeHandle(SQL_HANDLE_DBC, hDbc);
+    }
+    if (hEnv) {
+        SQLFreeHandle(SQL_HANDLE_ENV, hEnv);
+    }
+}
+
+bool MSSQLConnector::isConnected() {
+    return hDbc != nullptr;
+}
+
+bool MSSQLConnector::executeQuery(const std::string& sql) {
+    SQLHSTMT hStmt;
+    SQLAllocHandle(SQL_HANDLE_STMT, hDbc, &hStmt);
+    SQLRETURN ret = SQLExecDirect(hStmt, (SQLCHAR*)sql.c_str(), SQL_NTS);
+    SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+    
+    return SQL_SUCCEEDED(ret);
+}
+
+bool MSSQLConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch) {
+    for (const auto& sql : sqlBatch) {
+        if (!executeQuery(sql)) return false;
+    }
+    return true;
+}
+
