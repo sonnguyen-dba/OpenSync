@@ -24,9 +24,9 @@ void FileWatcher::watchFile(const std::string& path, const std::function<void()>
         int wdDir = inotify_add_watch(inotifyFd, directory.c_str(), IN_CREATE | IN_MOVED_TO);
 
         if (wdFile < 0 || wdDir < 0) {
-            Logger::warn("⚠️ FileWatcher failed to add watch for file or directory: " + path);
+            Logger::debug("⚠️ FileWatcher failed to add watch for file or directory: " + path);
         } else {
-            Logger::info("👀 FileWatcher is watching: " + path);
+            Logger::debug("👀 FileWatcher is watching: " + path);
         }
 
         constexpr size_t BUF_LEN = 4096;
@@ -44,11 +44,11 @@ void FileWatcher::watchFile(const std::string& path, const std::function<void()>
 
                 if (event->wd == wdFile) {
                     if (event->mask & IN_MODIFY) {
-                        Logger::info("🔁 FileWatcher detected modify: " + path);
+                        //Logger::debug("🔁 FileWatcher detected modify: " + path);
                         onChangeCallback();
                     }
                     if (event->mask & (IN_DELETE_SELF | IN_MOVE_SELF)) {
-                        Logger::warn("⚠️ FileWatcher: File deleted or moved. Re-watching: " + path);
+                        //Logger::debug("⚠️ FileWatcher: File deleted or moved. Re-watching: " + path);
                         inotify_rm_watch(inotifyFd, wdFile);
                         wdFile = -1;
                     }
@@ -57,11 +57,11 @@ void FileWatcher::watchFile(const std::string& path, const std::function<void()>
                 if (event->wd == wdDir && event->len > 0) {
                     std::string createdFile(event->name);
                     if (createdFile == filename) {
-                        Logger::info("🆕 FileWatcher: Detected recreate of file: " + path);
+                        //Logger::debug("🆕 FileWatcher: Detected recreate of file: " + path);
                         if (wdFile == -1) {
                             wdFile = inotify_add_watch(inotifyFd, path.c_str(), IN_MODIFY | IN_DELETE_SELF | IN_MOVE_SELF);
                             if (wdFile >= 0) {
-                                Logger::info("✅ FileWatcher re-watching file after recreate: " + path);
+                                //Logger::debug("✅ FileWatcher re-watching file after recreate: " + path);
                                 onChangeCallback();
                             }
                         }
@@ -77,4 +77,3 @@ void FileWatcher::watchFile(const std::string& path, const std::function<void()>
         close(inotifyFd);
     }).detach();
 }
-
