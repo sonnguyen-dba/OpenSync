@@ -1,0 +1,45 @@
+{
+    "kafka": {
+	     "bootstrap.servers": "localhost:9092",
+    	 "group.id": "groupid",
+       "enable.auto.commit": "false",
+       "auto.offset.reset": "earliest",
+	     "topic": "topic_name"
+    },
+    "filter_config_path": "config/filter_config.json",
+    "num_workers": "4",
+    "num_db_writers": "1",
+    "oracle_max_concurrency": 1,
+    "batch_size": "1000",
+    "batch_flush_interval_ms": 500,
+    "shrink_interval_sec": "10",
+    "timestamp_unit": 1,
+    "log-level": 1,
+    "log_config_to_console": false,
+    "log_iso8601": true,
+    "enable_iso_log": true,
+    "writeMode": "DB",
+    "databases": {
+    	"postgresql": {
+      	  "dbname": "your_database",
+      	  "user": "your_user",
+      	  "password": "your_password",
+          "host": "localhost",
+          "port": "5432"
+        },
+       "oracle": {
+          "user": "username",
+          "password": "passwd",
+          "host": "hostname",
+          "port": "1521",
+          "service": "service_name"
+        }
+    },
+    "monitor": {
+      "memory_monitor_interval_sec": 5,
+      "metrics_monitor_interval_sec": 5,
+      "connector_monitor_interval_sec": 10,
+      "table_buffer_monitor_interval_sec": 5,
+      "table_buffer_cleanup_interval_sec": 10
+  }
+}

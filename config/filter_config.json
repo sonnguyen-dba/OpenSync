@@ -1,0 +1,5 @@
+{
+  "tables": [
+    { "owner": "CDC", "table": "TEST01", "primaryKey": "A", "pk_index": "test01_pk" }
+  ]
+}
