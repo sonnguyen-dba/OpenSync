@@ -34,7 +34,7 @@ std::unique_ptr<AppComponents> AppInitializer::initialize(const std::string& con
 
     // Preload schema + Auto refresh + GC
     OracleSchemaCache::getInstance().preloadAllSchemas(*components->config);
-    OracleSchemaCache::getInstance().startAutoRefreshThread(*components->config, 900);
+    OracleSchemaCache::getInstance().startAutoRefreshThread(*components->config, 10);
     std::thread([] {
         while (true) {
             OracleSchemaCache::getInstance().shrinkIfInactive(30);

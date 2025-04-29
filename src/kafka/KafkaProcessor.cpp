@@ -381,7 +381,7 @@ std::unordered_map<std::pair<std::string, int>, double, pair_hash> KafkaProcesso
 
 void KafkaProcessor::shrinkLagBuffersIfOversized() {
     std::lock_guard<std::mutex> lock(lagMutex);
-    constexpr size_t MAX_LAG_SAMPLES = 5000;
+    constexpr size_t MAX_LAG_SAMPLES = 1000;
 
     for (auto& [key, vec] : kafkaLagByPartition) {
         if (vec.size() > MAX_LAG_SAMPLES) {

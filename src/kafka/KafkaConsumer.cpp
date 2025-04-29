@@ -315,7 +315,6 @@ void KafkaConsumer::reloadTableFilter(const std::string& configPath) {
     loadTableFilter(configPath);
 }
 
-
 void KafkaConsumer::printFilteredTables() {
     Logger::info("Filtered Tables: ");
     for (const auto& table : tableFilter) {

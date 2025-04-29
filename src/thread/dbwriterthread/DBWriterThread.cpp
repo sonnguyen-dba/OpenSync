@@ -9,7 +9,7 @@
 #include <sstream>
 #include <atomic>
 
-static constexpr int maxIdleSeconds = 60;
+static constexpr int maxIdleSeconds = 10;
 
 void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std::string& dbType, std::atomic<bool>& shouldShutdown) {
     while (!shouldShutdown) {
