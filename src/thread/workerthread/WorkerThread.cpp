@@ -80,6 +80,7 @@ void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atom
     std::tuple<std::string, int, int64_t, int64_t, rd_kafka_message_t*> itemLeft;
     while (kafkaMessageQueue.try_pop(itemLeft)) {
         auto& [message, partition, offset, timestamp, rawMsg] = itemLeft;
+        //Logger::info("Processing message, size: " + std::to_string(message.size() / 1024) + " KB");
         auto batchMap = processor.processMessageByTable(message, partition, offset, timestamp);
         //auto now = std::chrono::steady_clock::now();
         for (auto& [tableKey, sqls] : batchMap) {

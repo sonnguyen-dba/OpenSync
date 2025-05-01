@@ -96,7 +96,7 @@ bool WriteDataToDB::writeBatchToDB(const std::string& dbType,
             size_t oldSize = buf.size();
             std::vector<std::string>().swap(buf);  // shrink to fit
             tableSQLBuffer.erase(it); // hoặc giữ lại nếu cần reuse
-	    Logger::info("🧽 Flushed and cleaned buffer for table: " + tableKey +
+	          Logger::info("🧽 Flushed and cleaned buffer for table: " + tableKey +
                          ", oldSize=" + std::to_string(oldSize) +
                          ", released capacity=" + std::to_string(oldCap));
             MetricsExporter::getInstance().setGauge("table_sql_buffer_size", 0, {{"table", tableKey}});
@@ -108,7 +108,7 @@ bool WriteDataToDB::writeBatchToDB(const std::string& dbType,
 
 std::unique_ptr<DBConnector> WriteDataToDB::cloneConnector(const std::string& dbType) {
     if (connectorFactories.find(dbType) == connectorFactories.end()) {
-	Logger::error("Cannot clone: No factory registered for DB type " + dbType);
+	      Logger::error("Cannot clone: No factory registered for DB type " + dbType);
         return nullptr;
     }
     return connectorFactories[dbType]();
@@ -117,7 +117,7 @@ std::unique_ptr<DBConnector> WriteDataToDB::cloneConnector(const std::string& db
 std::mutex& WriteDataToDB::getTableMutex(const std::string& tableKey) {
     std::lock_guard<std::mutex> lock(mutexMapLock);
     if (tableMutexMap.find(tableKey) == tableMutexMap.end()) {
-	Logger::info("🧵 Creating mutex for table: " + tableKey);
+	     Logger::info("🧵 Creating mutex for table: " + tableKey);
     }
     return tableMutexMap[tableKey];
 }
@@ -138,13 +138,28 @@ void WriteDataToDB::reportTableSQLBufferMetrics() {
 
 void WriteDataToDB::addToTableSQLBuffer(const std::string& tableKey, const std::string& sql) {
     std::lock_guard<std::mutex> lock(tableBufferMutex);
+    Logger::info("addToTableSQLBuffer called for " + tableKey + ", SQL size: " + std::to_string(sql.size()) + " bytes");
     tableSQLBuffer[tableKey].push_back(sql);
 }
 
-std::unordered_map<std::string, std::vector<std::string>> WriteDataToDB::drainTableSQLBuffers() {
+/*std::unordered_map<std::string, std::vector<std::string>> WriteDataToDB::drainTableSQLBuffers() {
     std::lock_guard<std::mutex> lock(tableBufferMutex);
     std::unordered_map<std::string, std::vector<std::string>> drained;
     drained.swap(tableSQLBuffer);
+    return drained;
+}*/
+std::unordered_map<std::string, std::vector<std::string>> WriteDataToDB::drainTableSQLBuffers() {
+    std::lock_guard<std::mutex> lock(tableBufferMutex);
+    std::unordered_map<std::string, std::vector<std::string>> drained;
+    drained.swap(tableSQLBuffer); // Chuyển nội dung sang drained, tableSQLBuffer rỗng
+    for (auto& [table, sqls] : drained) {
+        Logger::info("Drained tableSQLBuffer for " + table + ", size: " + std::to_string(sqls.size()) + " SQLs");
+        sqls.shrink_to_fit(); // Thu gọn vector<std::string>
+    }
+    // Thu gọn tableSQLBuffer bằng cách swap với map mới
+    std::unordered_map<std::string, std::vector<std::string>> emptyMap;
+    tableSQLBuffer.swap(emptyMap);
+    Logger::info("Drained tableSQLBuffer, tables: " + std::to_string(drained.size()));
     return drained;
 }
 

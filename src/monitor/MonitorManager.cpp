@@ -25,7 +25,7 @@ void MonitorManager::startMonitors(
     int metricsInterval = config.getInt("monitor.metrics_monitor_interval_sec", 5);
     int connectorInterval = config.getInt("monitor.connector_monitor_interval_sec", 10);
     int bufferInterval = config.getInt("monitor.table_buffer_monitor_interval_sec", 5);
-    int cleanupInterval = config.getInt("monitor.table_buffer_cleanup_interval_sec", 10);
+    int cleanupInterval = config.getInt("monitor.table_buffer_cleanup_interval_sec", 2);
 
     std::thread([&stopFlag, &writeData, memoryInterval, metricsInterval, connectorInterval, bufferInterval, cleanupInterval]() {
         Logger::info("🔎 Unified Monitor thread started.");
@@ -87,4 +87,3 @@ void MonitorManager::startMonitors(
         Logger::info("🛑 Unified Monitor thread stopped.");
     }).detach();
 }
-

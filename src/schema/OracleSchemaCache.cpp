@@ -80,7 +80,7 @@ void OracleSchemaCache::loadSchemaIfNeeded(const std::string& fullTableName, DBC
     auto columnInfo = oracle->getFullColumnInfo(fullTableName);
     Logger::info("👀 Fetched " + std::to_string(columnInfo.size()) + " columns from Oracle for " + fullTableName);
     mergeSchema(fullTableName, columnInfo);
-    Logger::info("✅ Schema inserted into cache for: " + fullTableName);
+    Logger::debug("✅ Schema inserted into cache for: " + fullTableName);
     lastAccessTime[fullTableName] = std::chrono::steady_clock::now();
 }
 
@@ -131,7 +131,7 @@ void OracleSchemaCache::mergeSchema(
     int driftCount = 0;
 
     if (existingSchema.empty()) {
-        // ⚠️ Đây là lần đầu tiên nạp schema → lưu thẳng
+        //Đây là lần đầu tiên nạp schema → lưu thẳng
         existingSchema = newSchema;
 	      //for (const auto& [colName, colInfo] : newSchema) {
             //std::stringstream ss;
@@ -193,7 +193,7 @@ void OracleSchemaCache::startAutoRefreshThread(const ConfigLoader& config, int t
         return;
     }
 
-    stopRefresh = false;  // ✅ reset flag nếu restart
+    stopRefresh = false;  //reset flag nếu restart
 
     Logger::info("⏱️ Starting schema auto-refresh thread (interval: " + std::to_string(ttlSeconds) + "s)");
 
@@ -221,7 +221,7 @@ void OracleSchemaCache::startAutoRefreshThread(const ConfigLoader& config, int t
 void OracleSchemaCache::refreshAllSchemas(const ConfigLoader& config) {
     std::lock_guard<std::mutex> lock(cacheMutex);
     for (const auto& [fullTableName, _] : schemaCache) {
-	Logger::info("🔁 Refreshing schema for: " + fullTableName);
+	      Logger::info("🔁 Refreshing schema for: " + fullTableName);
         loadTableSchema(fullTableName, config);
     }
 }
@@ -286,7 +286,7 @@ void OracleSchemaCache::preloadAllSchemas(const ConfigLoader& config) {
             return;
         }
 
-        //Logger::info("✅ Connected to Oracle successfully for schema preload");
+        //Logger::debug("✅ Connected to Oracle successfully for schema preload");
 
         const auto& filters = FilterConfigLoader::getInstance().getAllFilters();
 	      Logger::info("📦 Total filters to preload: " + std::to_string(filters.size()));
@@ -302,7 +302,7 @@ void OracleSchemaCache::preloadAllSchemas(const ConfigLoader& config) {
         }
 
         connector->disconnect();
-        //Logger::info("🔌 Disconnected Oracle after schema preload");
+        //Logger::debug("🔌 Disconnected Oracle after schema preload");
 
     } catch (const std::exception& ex) {
 	     Logger::fatal("❌ Exception during preloadAllSchemas(): " + std::string(ex.what()));
