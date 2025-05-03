@@ -14,16 +14,16 @@ std::unique_ptr<DBConnector> DBConnectorFactory::createConnector(
             config.at("service")
         );
     }
-    /*else if (dbType == "postgresql") {
+    else if (dbType == "postgresql") {
         return std::make_unique<PostgreSQLConnector>(
             config.at("host"),
             std::stoi(config.at("port")),
             config.at("user"),
             config.at("password"),
-            config.at("database")
+            config.at("dbname")
         );
     }
-    else if (dbType == "mysql") {
+    /*else if (dbType == "mysql") {
         return std::make_unique<MySQLConnector>(
             config.at("host"),
             std::stoi(config.at("port")),
@@ -45,4 +45,3 @@ std::unique_ptr<DBConnector> DBConnectorFactory::createConnector(
     Logger::error("❌ Unsupported DB type in factory: " + dbType);
     return nullptr;
 }
-
