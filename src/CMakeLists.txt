@@ -1,6 +1,6 @@
 # src/CMakeLists.txt
 cmake_minimum_required(VERSION 3.16)
-project(OpenSync CXX)
+project(OpenSync VERSION 1.0.0 LANGUAGES CXX)
 
 # ✅ C++ standard
 set(CMAKE_CXX_STANDARD 17)

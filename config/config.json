@@ -18,6 +18,8 @@
     "log_config_to_console": false,
     "log_iso8601": true,
     "enable_iso_log": true,
+    "enable-oracle": true,
+    "enable-postgresql": false,
     "writeMode": "DB",
     "databases": {
     	"postgresql": {

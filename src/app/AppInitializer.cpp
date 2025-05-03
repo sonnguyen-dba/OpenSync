@@ -33,14 +33,28 @@ std::unique_ptr<AppComponents> AppInitializer::initialize(const std::string& con
     }
 
     // Preload schema + Auto refresh + GC
-    OracleSchemaCache::getInstance().preloadAllSchemas(*components->config);
-    OracleSchemaCache::getInstance().startAutoRefreshThread(*components->config, 10);
-    std::thread([] {
-        while (true) {
-            OracleSchemaCache::getInstance().shrinkIfInactive(30);
-            std::this_thread::sleep_for(std::chrono::minutes(10));
-        }
-    }).detach();
+    if (components->config->getBool("enable-oracle", true)) {
+    	OracleSchemaCache::getInstance().preloadAllSchemas(*components->config);
+    	OracleSchemaCache::getInstance().startAutoRefreshThread(*components->config, 10);
+    	std::thread([] {
+           while (true) {
+             OracleSchemaCache::getInstance().shrinkIfInactive(30);
+             std::this_thread::sleep_for(std::chrono::minutes(10));
+           }
+      }).detach();
+    }
+
+    // PostgreSQL schema cache: preload + auto-refresh + shrink
+    if (components->config->getBool("enable-postgresql", true)) {
+        PostgreSQLSchemaCache::getInstance().preloadAllSchemas(*components->config);
+        PostgreSQLSchemaCache::getInstance().startAutoRefreshThread(*components->config, 3);
+        std::thread([] {
+            while (true) {
+                PostgreSQLSchemaCache::getInstance().shrinkIfInactive(30);
+                std::this_thread::sleep_for(std::chrono::minutes(10));
+            }
+        }).detach();
+    }
 
     // Metrics server
     components->metrics = std::make_unique<MetricsServer>(
