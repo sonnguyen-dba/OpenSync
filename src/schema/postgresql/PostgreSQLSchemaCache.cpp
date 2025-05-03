@@ -1,7 +1,7 @@
 #include "PostgreSQLSchemaCache.h"
-#include "../config/FilterConfigLoader.h"
-#include "../db/postgresql/PostgreSQLConnector.h"      // ✅ để tạo connector
-#include "../logger/Logger.h"
+#include "../../config/FilterConfigLoader.h"
+#include "../../db/postgresql/PostgreSQLConnector.h"      // ✅ để tạo connector
+#include "../../logger/Logger.h"
 #include <thread>
 #include <sstream>
 
@@ -172,5 +172,3 @@ void PostgreSQLSchemaCache::shrinkIfInactive(int inactiveSeconds) {
         Logger::info("[PostgreSQLSchemaCache] ✅ Removed " + std::to_string(removed) + " inactive schema entries.");
     }
 }
-
-

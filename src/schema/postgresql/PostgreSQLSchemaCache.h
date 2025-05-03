@@ -2,8 +2,8 @@
 #include <string>
 #include <unordered_map>
 #include <mutex>
-#include "../db/postgresql/PostgreSQLConnector.h"
-#include "../config/ConfigLoader.h"
+#include "../../db/postgresql/PostgreSQLConnector.h"
+#include "../../config/ConfigLoader.h"
 #include "PostgreSQLColumnInfo.h"
 
 struct PostgreSQLSchemaCacheEntry {
@@ -38,4 +38,3 @@ private:
     std::mutex mutex_;
     std::mutex mutex;
 };
-

@@ -1,6 +1,7 @@
 #include "AppInitializer.h"
 #include "../config/FilterConfigLoader.h"
-#include "../schema/OracleSchemaCache.h"
+#include "../schema/oracle/OracleSchemaCache.h"
+#include "../schema/postgresql/PostgreSQLSchemaCache.h"
 #include "../logger/Logger.h"
 #include "../sqlbuilder/OracleSQLBuilder.h"
 #include "../monitor/MonitorManager.h"

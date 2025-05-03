@@ -1,10 +1,10 @@
 #include "OracleSchemaCache.h"
-#include "../db/oracle/OracleConnector.h"
-#include "../dbconnector/DBConnectorFactory.h"
-#include "../logger/Logger.h"
-#include "../config/ConfigLoader.h"
-#include "../metrics/MetricsExporter.h"
-#include "../dbconnector/DBConnector.h"
+#include "../../db/oracle/OracleConnector.h"
+#include "../../dbconnector/DBConnectorFactory.h"
+#include "../../logger/Logger.h"
+#include "../../config/ConfigLoader.h"
+#include "../../metrics/MetricsExporter.h"
+#include "../../dbconnector/DBConnector.h"
 #include "FilterConfigLoader.h"
 #include <unordered_map>
 #include <unordered_set>
