@@ -22,6 +22,7 @@ public:
     bool loadConfig(const std::string& filePath);
     std::string getPKIndex(const std::string& fullTableName) const;
     std::vector<FilterEntry> getAllFilters() const;
+    std::unordered_map<std::string, std::string> getPrimaryKeyColumns() const;
 
 private:
     mutable std::mutex mutex;

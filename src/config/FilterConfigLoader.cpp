@@ -81,3 +81,13 @@ std::vector<FilterEntry> FilterConfigLoader::getAllFilters() const {
     std::lock_guard<std::mutex> lock(mutex);
     return filters;
 }
+
+std::unordered_map<std::string, std::string> FilterConfigLoader::getPrimaryKeyColumns() const {
+    std::unordered_map<std::string, std::string> result;
+    std::lock_guard<std::mutex> lock(mutex);
+    for (const auto& filter : filters) {
+        std::string fullTable = filter.owner + "." + filter.table;
+        result[fullTable] = filter.primaryKey;
+    }
+    return result;
+}
