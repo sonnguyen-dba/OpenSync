@@ -1,6 +1,7 @@
-# src/CMakeLists.txt
 cmake_minimum_required(VERSION 3.16)
-project(OpenSync VERSION 1.0.0 LANGUAGES CXX)
+project(OpenSync VERSION 1.0.0 DESCRIPTION "OpenSync, Sync data from Kafka to databases" LANGUAGES CXX)
+
+string(TIMESTAMP CMAKE_BUILD_TIMESTAMP "%Y-%m-%d %H:%M" UTC)
 
 # ✅ C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -10,129 +11,188 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -Wall -Wextra -Wformat=2 -D_GLIBCXX_USE_CXX11_ABI=0")
 
 # ✅ External include directories
-include_directories(
-    /opt/rapidjson/include
-    /opt/librdkafka/include
-    /opt/instantclient_19_18/sdk/include
-)
+
+list(APPEND EXTERNAL_INCLUDE_DIRS
+	/opt/rapidjson/include
+	/opt/librdkafka/include
+	/opt/instantclient_19_18/sdk/include)
+
+include_directories(${EXTERNAL_INCLUDE_DIRS})
 
 # ✅ Include directories for source organization
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/app
-    ${CMAKE_CURRENT_SOURCE_DIR}/common
-    ${CMAKE_CURRENT_SOURCE_DIR}/config
-    ${CMAKE_CURRENT_SOURCE_DIR}/db/oracle
-    ${CMAKE_CURRENT_SOURCE_DIR}/dbconnector
-    ${CMAKE_CURRENT_SOURCE_DIR}/exception
-    ${CMAKE_CURRENT_SOURCE_DIR}/external
-    ${CMAKE_CURRENT_SOURCE_DIR}/kafka
-    ${CMAKE_CURRENT_SOURCE_DIR}/logger
-    ${CMAKE_CURRENT_SOURCE_DIR}/metrics
-    ${CMAKE_CURRENT_SOURCE_DIR}/monitor
-    ${CMAKE_CURRENT_SOURCE_DIR}/schema
-    ${CMAKE_CURRENT_SOURCE_DIR}/sqlbuilder
-    ${CMAKE_CURRENT_SOURCE_DIR}/thread
-    ${CMAKE_CURRENT_SOURCE_DIR}/time
-    ${CMAKE_CURRENT_SOURCE_DIR}/utils
-    ${CMAKE_CURRENT_SOURCE_DIR}/WriteDataToDB
-    ${CMAKE_CURRENT_SOURCE_DIR}/writer
-)
+
+list(APPEND SOURCE_INCLUDE_DIRS
+	${CMAKE_CURRENT_SOURCE_DIR}
+	${CMAKE_CURRENT_SOURCE_DIR}/app
+	${CMAKE_CURRENT_SOURCE_DIR}/common
+	${CMAKE_CURRENT_SOURCE_DIR}/config
+	${CMAKE_CURRENT_SOURCE_DIR}/db/oracle
+	${CMAKE_CURRENT_SOURCE_DIR}/db/postgresql
+	${CMAKE_CURRENT_SOURCE_DIR}/dbconnector
+	${CMAKE_CURRENT_SOURCE_DIR}/exception
+	${CMAKE_CURRENT_SOURCE_DIR}/external
+	${CMAKE_CURRENT_SOURCE_DIR}/kafka
+	${CMAKE_CURRENT_SOURCE_DIR}/logger
+	${CMAKE_CURRENT_SOURCE_DIR}/metrics
+	${CMAKE_CURRENT_SOURCE_DIR}/monitor
+	${CMAKE_CURRENT_SOURCE_DIR}/schema
+	${CMAKE_CURRENT_SOURCE_DIR}/sqlbuilder
+	${CMAKE_CURRENT_SOURCE_DIR}/thread
+	${CMAKE_CURRENT_SOURCE_DIR}/time
+	${CMAKE_CURRENT_SOURCE_DIR}/utils
+	${CMAKE_CURRENT_SOURCE_DIR}/WriteDataToDB
+	${CMAKE_CURRENT_SOURCE_DIR}/writer)
+include_directories(${SOURCE_INCLUDE_DIRS})
 
 # ✅ External library directories
-link_directories(
-    /opt/librdkafka/lib
-    /opt/instantclient_19_18
+
+list(APPEND LIBRARY_DIRS
+	/opt/librdkafka/lib
+	/opt/instantclient_19_18
+)
+link_directories(${LIBRARY_DIRS})
+
+# Define source files by directory using list(APPEND)
+
+list(APPEND ListMain main.cpp )
+list(APPEND ListApp app/AppInitializer.cpp )
+list(APPEND ListCommon common/Queues.cpp )
+
+list(APPEND ListConfig
+	config/ConfigLoader.cpp
+	config/FilterConfigLoader.cpp
 )
 
-# Define source files by directory
-# Main files
-file(GLOB MAIN_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-file(GLOB APP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp")
-file(GLOB COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/common/*.cpp")
-file(GLOB CONFIG_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/config/*.cpp")
-file(GLOB DB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/db/oracle/*.cpp")
-file(GLOB DBCONNECT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/dbconnector/*.cpp")
-file(GLOB EXCEPT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/exception/*.cpp")
-file(GLOB EXTEN_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/external/*.cpp")
-file(GLOB KAFKA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/kafka/*.cpp")
-file(GLOB LOGGER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/logger/*.cpp")
-file(GLOB METRICS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metrics/*.cpp")
-file(GLOB MONITOR_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/monitor/*.cpp")
-file(GLOB ORA_SCHEMA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/schema/oracle/*.cpp")
-file(GLOB PG_SCHEMA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/schema/postgresql/*.cpp")
-file(GLOB SQLBUILDER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/sqlbuilder/*.cpp")
-file(GLOB THREAD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/thread/*.cpp")
-file(GLOB DBTHREAD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/thread/dbwriterthread/*.cpp")
-file(GLOB WTHREAD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/thread/workerthread/*.cpp")
-file(GLOB MTHREAD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/thread/monitorthread/*.cpp")
-file(GLOB TIME_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/time/*.cpp")
-file(GLOB UTILS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cpp")
-file(GLOB WRITEDATATODB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/WriteDataToDB/*.cpp")
-file(GLOB WRITER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/writer/*.cpp")
+list(APPEND ListOracle db/oracle/OracleConnector.cpp)
+list(APPEND ListPostgreSQL db/postgresql/PostgreSQLConnector.cpp)
+list(APPEND ListDBConnector dbconnector/DBConnectorFactory.cpp)
 
-# ✅ Combine all sources
-set(ALL_SOURCES
-    ${MAIN_SOURCES}
-    ${APP_SOURCES}
-    ${COMMON_SOURCES}
-    ${CONFIG_SOURCES}
-    ${DB_SOURCES}
-    ${DBCONNECT_SOURCES}
-    ${EXCEPT_SOURCES}
-    ${EXTEN_SOURCES}
-    ${KAFKA_SOURCES}
-    ${LOGGER_SOURCES}
-    ${METRICS_SOURCES}
-    ${MONITOR_SOURCES}
-    ${ORA_SCHEMA_SOURCES}
-    ${PG_SCHEMA_SOURCES}
-    ${SQLBUILDER_SOURCES}
-    ${THREAD_SOURCES}
-    ${DBTHREAD_SOURCES}
-    ${WTHREAD_SOURCES}
-    ${MTHREAD_SOURCES}
-    ${TIME_SOURCES}
-    ${UTILS_SOURCES}
-    ${WRITEDATATODB_SOURCES}
-    ${WRITER_SOURCES}
+list(APPEND ListException
+	exception/DBException.cpp
 )
+
+list(APPEND ListExternal external/date.h)
+
+list(APPEND ListKafka
+	kafka/KafkaConsumer.cpp
+	kafka/KafkaProcessor.cpp
+	kafka/FileWatcher.cpp)
+
+list(APPEND ListLogger
+	logger/Logger.cpp)
+
+list(APPEND ListMetrics
+	metrics/MetricsServer.cpp
+	metrics/MetricsExporter.cpp
+	metrics/SystemMetricsUtils.cpp)
+
+list(APPEND ListMonitor
+	monitor/MonitorManager.cpp)
+
+list(APPEND ListSchema
+	schema/OracleSchemaCache.cpp
+	schema/PostgreSQLSchemaCache.cpp)
+
+list(APPEND ListSQLBuilder
+	sqlbuilder/OracleSQLBuilder.cpp
+	sqlbuilder/PostgreSQLSQLBuilder.cpp)
+
+list(APPEND ListThread thread/KafkaConsumerThread.cpp)
+
+list(APPEND ListDBWriterThread
+	thread/dbwriterthread/DBWriterThread.cpp
+	thread/dbwriterthread/ThreadPoolDBWriter.cpp
+)
+
+list(APPEND ListWorkerThread thread/workerthread/WorkerThread.cpp)
+list(APPEND ListMonitorThread thread/monitorthread/MonitorThread.cpp)
+list(APPEND ListTime time/TimeUtils.cpp)
+
+list(APPEND ListUtils
+	utils/BufferGCManager.cpp
+	utils/MemoryUtils.cpp
+	utils/SQLUtils.cpp
+)
+
+list(APPEND ListWriteDataToDB WriteDataToDB/WriteDataToDB.cpp)
+
+list(APPEND ListWriter writer/CheckpointManager.cpp)
+
+# ✅ Create object libraries for each source list
+add_library(LibMain OBJECT ${ListMain})
+add_library(LibApp OBJECT ${ListApp})
+add_library(LibCommon OBJECT ${ListCommon})
+add_library(LibConfig OBJECT ${ListConfig})
+add_library(LibOracle OBJECT ${ListOracle})
+add_library(LibPostgreSQL OBJECT ${ListPostgreSQL})
+add_library(LibDBConnector OBJECT ${ListDBConnector})
+add_library(LibException OBJECT ${ListException})
+add_library(LibExternal OBJECT ${ListExternal})
+add_library(LibKafka OBJECT ${ListKafka})
+add_library(LibLogger OBJECT ${ListLogger})
+add_library(LibMetrics OBJECT ${ListMetrics})
+add_library(LibMonitor OBJECT ${ListMonitor})
+add_library(LibSchema OBJECT ${ListSchema})
+add_library(LibSQLBuilder OBJECT ${ListSQLBuilder})
+add_library(LibThread OBJECT ${ListThread})
+add_library(LibDBWriterThread OBJECT ${ListDBWriterThread})
+add_library(LibWorkerThread OBJECT ${ListWorkerThread})
+add_library(LibMonitorThread OBJECT ${ListMonitorThread})
+add_library(LibTime OBJECT ${ListTime})
+add_library(LibUtils OBJECT ${ListUtils})
+add_library(LibWriteDataToDB OBJECT ${ListWriteDataToDB})
+add_library(LibWriter OBJECT ${ListWriter})
 
 # ✅ Output to bin/
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # ✅ Build target
-add_executable(OpenSync ${ALL_SOURCES})
+add_executable(OpenSync ${ListMain})
+
+# ✅ Link object libraries
+target_link_libraries(OpenSync
+    LibApp
+    LibCommon
+    LibConfig
+    LibOracle
+    LibPostgreSQL
+    LibDBConnector
+    LibException
+    LibExternal
+    LibKafka
+    LibLogger
+    LibMetrics
+    LibMonitor
+    LibSchema
+    LibSQLBuilder
+    LibThread
+    LibDBWriterThread
+    LibWorkerThread
+    LibMonitorThread
+    LibTime
+    LibUtils
+    LibWriteDataToDB
+    LibWriter)
+
+#add_executable(OpenSync ${ALL_SOURCES})
 
 # ✅ Link libraries
-target_link_libraries(OpenSync occi clntsh rdkafka pq pthread stdc++fs)
+
+list(APPEND LINK_LIBRARIES occi clntsh rdkafka pq pthread stdc++fs)
+target_link_libraries(OpenSync ${LINK_LIBRARIES})
 
 # ✅ Convenience: custom "run" target
-add_custom_target(run
-    COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/OpenSync
-    DEPENDS OpenSync
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
+
+add_custom_target(run COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/OpenSync DEPENDS OpenSync WORKING_DIRECTORY ${CMAKE_BINARY_DIR} )
 
 # ✅ Create config directory in build directory
-add_custom_command(TARGET OpenSync POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/config
-    COMMENT "Creating config directory"
-)
+
+add_custom_command(TARGET OpenSync POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/config COMMENT "Creating config directory" )
 
 # ✅ Copy config files (if they don't exist)
-add_custom_command(TARGET OpenSync POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_SOURCE_DIR}/config/config.json
-        ${CMAKE_BINARY_DIR}/config/
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_SOURCE_DIR}/config/filter_config.json
-        ${CMAKE_BINARY_DIR}/config/
-    COMMENT "Copying configuration files"
-)
+
+add_custom_command(TARGET OpenSync POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/config/config.json ${CMAKE_BINARY_DIR}/config/ COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/config/filter_config.json ${CMAKE_BINARY_DIR}/config/ COMMENT "Copying configuration files" )
 
 # ✅ Create checkpoints directory
-add_custom_command(TARGET OpenSync POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/checkpoints
-    COMMENT "Creating checkpoints directory"
-)
+
+add_custom_command(TARGET OpenSync POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/checkpoints COMMENT "Creating checkpoints directory" )
