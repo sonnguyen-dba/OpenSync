@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(OpenSync VERSION 1.0.0 DESCRIPTION "OpenSync, Sync data from Kafka to databases" LANGUAGES CXX)
+project(OpenSync VERSION 1.0.0 DESCRIPTION "OpenSync, Consume data from topic by produce from @OpenLogReplicator to databases" LANGUAGES CXX)
 
 string(TIMESTAMP CMAKE_BUILD_TIMESTAMP "%Y-%m-%d %H:%M" UTC)
 
