@@ -97,15 +97,13 @@ list(APPEND ListSQLBuilder
 	sqlbuilder/OracleSQLBuilder.cpp
 	sqlbuilder/PostgreSQLSQLBuilder.cpp)
 
-list(APPEND ListThread thread/KafkaConsumerThread.cpp)
+list(APPEND ListThread
+  thread/KafkaConsumerThread.cpp
+  thread/dbwriterthread/DBWriterThread.cpp
+  thread/dbwriterthread/ThreadPoolDBWriter.cpp
+  thread/workerthread/WorkerThread.cpp
+  thread/monitorthread/MonitorThread.cpp)
 
-list(APPEND ListDBWriterThread
-	thread/dbwriterthread/DBWriterThread.cpp
-	thread/dbwriterthread/ThreadPoolDBWriter.cpp
-)
-
-list(APPEND ListWorkerThread thread/workerthread/WorkerThread.cpp)
-list(APPEND ListMonitorThread thread/monitorthread/MonitorThread.cpp)
 list(APPEND ListTime time/TimeUtils.cpp)
 
 list(APPEND ListUtils
@@ -135,9 +133,6 @@ add_library(LibMonitor OBJECT ${ListMonitor})
 add_library(LibSchema OBJECT ${ListSchema})
 add_library(LibSQLBuilder OBJECT ${ListSQLBuilder})
 add_library(LibThread OBJECT ${ListThread})
-add_library(LibDBWriterThread OBJECT ${ListDBWriterThread})
-add_library(LibWorkerThread OBJECT ${ListWorkerThread})
-add_library(LibMonitorThread OBJECT ${ListMonitorThread})
 add_library(LibTime OBJECT ${ListTime})
 add_library(LibUtils OBJECT ${ListUtils})
 add_library(LibWriteDataToDB OBJECT ${ListWriteDataToDB})
@@ -166,9 +161,6 @@ target_link_libraries(OpenSync
     LibSchema
     LibSQLBuilder
     LibThread
-    LibDBWriterThread
-    LibWorkerThread
-    LibMonitorThread
     LibTime
     LibUtils
     LibWriteDataToDB
