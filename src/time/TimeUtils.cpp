@@ -121,6 +121,61 @@ namespace TimeUtils {
         }
     }
 
+/*    std::string convertMicrosecondsToTimestamp(int64_t microseconds) {
+        try {
+            auto dur = std::chrono::microseconds(microseconds);
+            auto tp = std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds>(dur);
+
+            std::ostringstream oss;
+            oss << date::format("%F %T", tp);  // yyyy-MM-dd HH:mm:ss
+            return oss.str();
+        } catch (const std::exception& e) {
+            std::cerr << "[TimeUtils] Timestamp conversion failed: " << e.what() << std::endl;
+            return "INVALID_TIMESTAMP";
+        }
+    }
+
+    std::string convertMicrosecondsToDate(int64_t microseconds) {
+        try {
+            auto dur = std::chrono::microseconds(microseconds);
+            auto tp = std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds>(dur);
+
+            sys_days dp = floor<days>(tp);
+            year_month_day ymd(dp);
+
+            std::ostringstream oss;
+            oss << ymd;  // yyyy-MM-dd
+            return oss.str();
+        } catch (const std::exception& e) {
+            std::cerr << "[TimeUtils] Date conversion failed: " << e.what() << std::endl;
+            return "INVALID_DATE";
+        }
+    }
+
+    std::string epochToIso8601(int64_t microseconds) {
+        try {
+            auto dur = std::chrono::microseconds(microseconds);
+            auto tp = std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds>(dur);
+
+            std::ostringstream oss;
+            oss << date::format("%FT%T", tp);  // YYYY-MM-DDTHH:MM:SS
+            int64_t us_part = microseconds % 1000000;
+            if (us_part < 0) us_part += 1000000;
+
+            // Thêm phần .FFFFFF
+            char fractional[16];
+            snprintf(fractional, sizeof(fractional), ".%06ld", us_part);
+            oss << fractional;
+
+            oss << "Z";  // UTC
+            return oss.str();
+        } catch (const std::exception& e) {
+            std::cerr << "[TimeUtils] ISO 8601 conversion failed: " << e.what() << std::endl;
+            return "INVALID_ISO8601";
+        }
+    }*/
+
+
   std::string convertTimestamp(int64_t value, int unit) {
     try {
         int64_t timestamp_us = value;
@@ -130,22 +185,22 @@ namespace TimeUtils {
             case 0: // Nanosecond
                 unit_str = "nanoseconds";
                 timestamp_us = value / 1000; // Nanosecond to microsecond
-                Logger::debug("Converted timestamp from nanoseconds to microseconds: value=" +
+                OpenSync::Logger::debug("Converted timestamp from nanoseconds to microseconds: value=" +
                              std::to_string(value) + ", result=" + std::to_string(timestamp_us));
                 break;
             case 1: // Microsecond
                 unit_str = "microseconds";
                 timestamp_us = value; // Giữ nguyên
-                Logger::debug("Interpreted timestamp as microseconds: value=" + std::to_string(value));
+                OpenSync::Logger::debug("Interpreted timestamp as microseconds: value=" + std::to_string(value));
                 break;
             case 2: // Millisecond
                 unit_str = "milliseconds";
                 timestamp_us = value * 1000; // Millisecond to microsecond
-                Logger::debug("Converted timestamp from milliseconds to microseconds: value=" +
+                OpenSync::Logger::debug("Converted timestamp from milliseconds to microseconds: value=" +
                              std::to_string(value) + ", result=" + std::to_string(timestamp_us));
                 break;
             default:
-                Logger::error("Invalid timestamp unit: " + std::to_string(unit) + ", treating as microseconds");
+                OpenSync::Logger::error("Invalid timestamp unit: " + std::to_string(unit) + ", treating as microseconds");
                 unit_str = "microseconds";
                 timestamp_us = value;
                 break;
@@ -155,13 +210,13 @@ namespace TimeUtils {
         const int64_t MIN_TIMESTAMP_US = -3786825600000000; // 1850-01-01
         const int64_t MAX_TIMESTAMP_US = 4102444800000000;  // 2100-01-01
         if (timestamp_us < MIN_TIMESTAMP_US || timestamp_us > MAX_TIMESTAMP_US) {
-            Logger::warn("Timestamp out of range: " + std::to_string(timestamp_us) + " (" + unit_str + ")");
+            OpenSync::Logger::warn("Timestamp out of range: " + std::to_string(timestamp_us) + " (" + unit_str + ")");
             return "INVALID_TIMESTAMP";
         }
 
         return convertMicrosecondsToTimestamp(timestamp_us);
     } catch (const std::exception& e) {
-        Logger::error("[TimeUtils] Timestamp conversion failed: " + std::string(e.what()));
+        OpenSync::Logger::error("[TimeUtils] Timestamp conversion failed: " + std::string(e.what()));
         return "INVALID_TIMESTAMP";
     }
  }
@@ -206,7 +261,7 @@ namespace TimeUtils {
         int64_t us_part = microseconds % 1000000;
         if (us_part < 0) us_part += 1000000;
 
-        // more .FFFFFF
+        // Thêm phần .FFFFFF
         char fractional[16];
         snprintf(fractional, sizeof(fractional), ".%06ld", us_part);
         oss << fractional;

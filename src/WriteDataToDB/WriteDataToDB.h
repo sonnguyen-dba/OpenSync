@@ -47,10 +47,15 @@ private:
     std::mutex mutexMapLock;
 
     //SQL buffer per table
+    //std::unordered_map<std::string, std::vector<std::string>> tableSQLBuffer;
     std::mutex bufferMutex;
 
+    //std::mutex tableBufferMutex;
+    //std::unordered_map<std::string, std::vector<std::string>> tableSQLBuffer;
+    //std::unordered_map<std::string, std::vector<std::string>> tableSQLBuffer;
     mutable std::mutex tableBufferMutex;
     std::unordered_map<std::string, std::vector<std::string>> tableSQLBuffer;
 };
 
 #endif // WRITEDATATODB_H
+

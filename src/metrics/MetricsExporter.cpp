@@ -154,4 +154,3 @@ std::string MetricsExporter::exportMetrics() {
 
     return output.str();
 }
-

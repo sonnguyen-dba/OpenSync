@@ -16,11 +16,11 @@ void MonitorManager::startMonitors(
     WriteDataToDB& writeData,
     ConfigLoader& config
 ) {
-    Logger::info("🧠 Starting Unified MonitorManager...");
+    OpenSync::Logger::info("🧠 Starting Unified MonitorManager...");
 
     auto& stopFlag = consumer.getStopFlag();
 
-    // Đọc các interval từ config
+    // read interval from config
     int memoryInterval = config.getInt("monitor.memory_monitor_interval_sec", 5);
     int metricsInterval = config.getInt("monitor.metrics_monitor_interval_sec", 5);
     int connectorInterval = config.getInt("monitor.connector_monitor_interval_sec", 10);
@@ -28,7 +28,7 @@ void MonitorManager::startMonitors(
     int cleanupInterval = config.getInt("monitor.table_buffer_cleanup_interval_sec", 2);
 
     std::thread([&stopFlag, &writeData, memoryInterval, metricsInterval, connectorInterval, bufferInterval, cleanupInterval]() {
-        Logger::info("🔎 Unified Monitor thread started.");
+        OpenSync::Logger::info("🔎 Unified Monitor thread started.");
 
         using clock = std::chrono::steady_clock;
         auto lastMemoryCheck = clock::now();
@@ -42,7 +42,7 @@ void MonitorManager::startMonitors(
 
             if (std::chrono::duration_cast<std::chrono::seconds>(now - lastMemoryCheck).count() >= memoryInterval) {
                 auto [vmMB, rssMB] = MemoryUtils::getMemoryUsageMB();
-                Logger::info("[Memory] VM: " + std::to_string(vmMB) + " MB, RSS: " + std::to_string(rssMB) + " MB");
+                OpenSync::Logger::info("[Memory] VM: " + std::to_string(vmMB) + " MB, RSS: " + std::to_string(rssMB) + " MB");
                 lastMemoryCheck = now;
             }
 
@@ -84,6 +84,6 @@ void MonitorManager::startMonitors(
             std::this_thread::sleep_for(std::chrono::milliseconds(200)); // sleep nhẹ nhàng
         }
 
-        Logger::info("🛑 Unified Monitor thread stopped.");
+        OpenSync::Logger::info("🛑 Unified Monitor thread stopped.");
     }).detach();
 }

@@ -11,10 +11,10 @@ public:
     explicit ConfigLoader(const std::string& configPath);
     bool loadConfig();
     std::string getKafkaConfig(const std::string& key);
-
+//    std::string getDBConfig(const std::string& dbType, const std::string& key);
     std::string getDBConfig(const std::string& dbType, const std::string& key) const;
     const std::map<std::string, std::string>& getConfigMap() const { return configMap; }
-
+    
     // 🆕 Thêm hàm để lấy cấu hình chung từ config.json
     std::string getConfig(const std::string& key) const;
 
@@ -36,3 +36,4 @@ private:
 };
 
 #endif
+

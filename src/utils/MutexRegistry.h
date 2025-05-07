@@ -1,6 +1,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <shared_mutex>
+#include <../logger/Logger.h>
 
 static std::unordered_map<std::string, std::shared_ptr<std::mutex>> tableMutexMap;
 static std::shared_mutex tableMutexMapGlobalLock;
@@ -16,7 +17,9 @@ std::shared_ptr<std::mutex> getTableMutex(const std::string& tableKey) {
     auto& mtx = tableMutexMap[tableKey];
     if (!mtx) {
         mtx = std::make_shared<std::mutex>();
-	       Logger::info("🧵 Creating mutex for table: " + tableKey);
+	OpenSync::Logger::info("🧵 Creating mutex for table: " + tableKey);
     }
     return mtx;
 }
+
+

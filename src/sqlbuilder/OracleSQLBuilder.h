@@ -12,5 +12,6 @@ public:
 private:
     ConfigLoader& config;
     bool enableISODebugLog = false;
-    int timestamp_unit;
+    int timestamp_unit; // Thêm để lưu đơn vị timestamp
 };
+

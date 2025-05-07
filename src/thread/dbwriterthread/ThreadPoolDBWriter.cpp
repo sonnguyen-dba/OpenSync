@@ -63,12 +63,14 @@ void ThreadPoolDBWriter::workerThread() {
                 try {
                     task();
                 } catch (const std::exception& ex) {
-                    Logger::error("DBWriter task exception: " + std::string(ex.what()));
+                    // LOG_ERROR("DBWriter task exception: " + std::string(ex.what()));
                 } catch (...) {
-                    Logger::error("DBWriter task unknown exception");
+                    // LOG_ERROR("DBWriter task unknown exception");
                 }
             }
+
             idleSince = std::chrono::steady_clock::now(); // reset idle timer
         }
     }
 }
+

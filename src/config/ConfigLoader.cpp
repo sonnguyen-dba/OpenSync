@@ -11,7 +11,7 @@ ConfigLoader::ConfigLoader(const std::string& configPath) : configFilePath(confi
 bool ConfigLoader::loadConfig() {
     std::ifstream ifs(configFilePath);
     if (!ifs.is_open()) {
-        Logger::error("❌ Unable to open config file: " + configFilePath);
+        OpenSync::Logger::error("❌ Unable to open config file: " + configFilePath);
         return false;
     }
 
@@ -19,11 +19,11 @@ bool ConfigLoader::loadConfig() {
     configJson.ParseStream(isw);
 
     if (configJson.HasParseError()) {
-        Logger::error("❌ JSON parse error in config file.");
+        OpenSync::Logger::error("❌ JSON parse error in config file.");
         return false;
     }
 
-    Logger::info("📥 Config loaded successfully from: " + configFilePath);
+    OpenSync::Logger::info("📥 Config loaded successfully from: " + configFilePath);
 
     std::ofstream configDump("log/config_dump.log", std::ios::app);
     for (auto it = configJson.MemberBegin(); it != configJson.MemberEnd(); ++it) {
@@ -36,8 +36,8 @@ bool ConfigLoader::loadConfig() {
         else if (v.IsBool()) value = v.GetBool() ? "true" : "false";
         else value = "[non-string]";
 
-        if (Logger::isDebugEnabled()) {
-            Logger::debug("🔧 Config [" + key + "] = " + value);
+        if (OpenSync::Logger::isDebugEnabled()) {
+            OpenSync::Logger::debug("🔧 Config [" + key + "] = " + value);
         }
 
         if (configDump.is_open()) {
@@ -74,6 +74,7 @@ std::string ConfigLoader::getDBConfig(const std::string& dbType, const std::stri
     std::cerr << "❌ Error: Key '" << key << "' not found for database '" << dbType << "' in config!" << std::endl;
     return "";
 }
+
 
 // 🆕 Thêm hàm lấy cấu hình chung từ file JSON
 std::string ConfigLoader::getConfig(const std::string& key) const {
@@ -120,7 +121,7 @@ int ConfigLoader::getInt(const std::string& key, int defaultValue) const {
 void ConfigLoader::dumpConfig(const std::string& outputFile, bool logToConsole) const {
     std::ofstream ofs(outputFile);
     if (!ofs.is_open()) {
-        Logger::warn("⚠️ Failed to open config dump file: " + outputFile);
+        OpenSync::Logger::warn("⚠️ Failed to open config dump file: " + outputFile);
         return;
     }
 
@@ -147,7 +148,7 @@ void ConfigLoader::dumpConfig(const std::string& outputFile, bool logToConsole) 
         }
     }
 
-    Logger::info("✅ Configuration dumped to: " + outputFile);
+    OpenSync::Logger::info("✅ Configuration dumped to: " + outputFile);
 }
 
 bool ConfigLoader::shouldLogConfigToConsole() const {
@@ -162,7 +163,7 @@ std::string ConfigLoader::getConfig(const std::string& key, const std::string& d
 }
 
 int ConfigLoader::getTimestampUnit() const {
-    //Logger::debug("Returning timestamp_unit: " + std::to_string(timestamp_unit));
+    //OpenSync::Logger::debug("Returning timestamp_unit: " + std::to_string(timestamp_unit));
     //return timestamp_unit;
     return getInt("timestamp_unit", 1);
 }

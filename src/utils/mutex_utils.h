@@ -16,7 +16,8 @@ std::shared_ptr<std::mutex> getTableMutex(const std::string& tableKey) {
     auto& mtx = tableMutexMap[tableKey];
     if (!mtx) {
         mtx = std::make_shared<std::mutex>();
-        Logger::info("🧵 Creating mutex for table: " + tableKey);
+        LOG_INFO("🧵 Creating mutex for table: " + tableKey);
     }
     return mtx;
 }
+

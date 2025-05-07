@@ -1,4 +1,5 @@
 #include "DBWriterThread.h"
+#include "PerTableMutexManager.h"
 #include "../../utils/MutexRegistry.h"
 #include "../../metrics/MetricsExporter.h"
 #include "../../logger/Logger.h"
@@ -9,7 +10,9 @@
 #include <sstream>
 #include <atomic>
 
-static constexpr int maxIdleSeconds = 10;
+static constexpr int maxIdleSeconds = 10; // Timeout để flush batch
+static PerTableMutexManager mutexManager;
+
 
 void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std::string& dbType, std::atomic<bool>& shouldShutdown) {
     while (!shouldShutdown) {
@@ -18,23 +21,27 @@ void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std
         {
             std::stringstream ss;
             ss << "Waiting for data in dbWriteQueue...";
-            Logger::debug(ss.str());
+            OpenSync::Logger::debug(ss.str());
         }
         bool hasData = dbWriteQueue.try_pop(item, std::chrono::seconds(maxIdleSeconds));
         if (!hasData) {
             std::stringstream ss;
             ss << "No new data in queue after " << maxIdleSeconds << " seconds, flushing remaining batches...";
-            Logger::debug(ss.str());
+            OpenSync::Logger::debug(ss.str());
             while (dbWriteQueue.try_pop(item)) {
                 auto& [tableKey, batch] = item;
                 {
                     std::stringstream ss;
                     ss << "Flushing batch for table: " << tableKey;
-                    Logger::debug(ss.str());
+                    OpenSync::Logger::debug(ss.str());
                 }
 
-                auto tableMtx = getTableMutex(tableKey);
-                std::lock_guard<std::mutex> lock(*tableMtx);
+                //auto tableMtx = getTableMutex(tableKey);
+                //std::lock_guard<std::mutex> lock(*tableMtx);
+		
+		std::mutex& tableMtx = mutexManager.getMutex(tableKey);
+		std::lock_guard<std::mutex> lock(tableMtx);
+
 
                 std::atomic<int> totalRowsWritten{0};
                 std::atomic<int> totalBatches{0};
@@ -91,7 +98,7 @@ void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std
                    << (success ? "✅ Successfully" : "❌ Failed to")
                    << " wrote " << batch.sqls.size() << " queries to " << dbType
                    << " (table: " << tableKey << ") in " << elapsed.count() << " ms.";
-                success ? Logger::info(ss.str()) : Logger::error(ss.str());
+                success ? OpenSync::Logger::info(ss.str()) : OpenSync::Logger::error(ss.str());
             }
             continue;
         }
@@ -100,11 +107,14 @@ void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std
         {
             std::stringstream ss;
             ss << "Processing batch for table: " << tableKey;
-            Logger::debug(ss.str());
+            OpenSync::Logger::debug(ss.str());
         }
 
-        auto tableMtx = getTableMutex(tableKey);
-        std::lock_guard<std::mutex> lock(*tableMtx);
+        //auto tableMtx = getTableMutex(tableKey);
+        //std::lock_guard<std::mutex> lock(*tableMtx);
+	
+	std::mutex& tableMtx = mutexManager.getMutex(tableKey);
+	std::lock_guard<std::mutex> lock(tableMtx);
 
         std::atomic<int> totalRowsWritten{0};
         std::atomic<int> totalBatches{0};
@@ -161,14 +171,14 @@ void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std
            << (success ? "✅ Successfully" : "❌ Failed to")
            << " wrote " << batch.sqls.size() << " queries to " << dbType
            << " (table: " << tableKey << ") in " << elapsed.count() << " ms.";
-        success ? Logger::info(ss.str()) : Logger::error(ss.str());
+        success ? OpenSync::Logger::info(ss.str()) : OpenSync::Logger::error(ss.str());
     }
 
     // Flush tất cả batch khi shutdown
     {
         std::stringstream ss;
         ss << "Shutting down DB writer, flushing all remaining batches...";
-        Logger::info(ss.str());
+        OpenSync::Logger::info(ss.str());
     }
     std::tuple<std::string, TableBatch> item;
     while (dbWriteQueue.try_pop(item)) {
@@ -176,11 +186,15 @@ void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std
         {
             std::stringstream ss;
             ss << "Flushing batch for table: " << tableKey;
-            Logger::debug(ss.str());
+            OpenSync::Logger::debug(ss.str());
         }
 
-        auto tableMtx = getTableMutex(tableKey);
-        std::lock_guard<std::mutex> lock(*tableMtx);
+        //auto tableMtx = getTableMutex(tableKey);
+        //std::lock_guard<std::mutex> lock(*tableMtx);
+
+	// Mới:
+	std::mutex& tableMtx = mutexManager.getMutex(tableKey);
+	std::lock_guard<std::mutex> lock(tableMtx);
 
         std::atomic<int> totalRowsWritten{0};
         std::atomic<int> totalBatches{0};
@@ -237,6 +251,6 @@ void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std
            << (success ? "✅ Successfully" : "❌ Failed to")
            << " wrote " << batch.sqls.size() << " queries to " << dbType
            << " (table: " << tableKey << ") in " << elapsed.count() << " ms.";
-        success ? Logger::info(ss.str()) : Logger::error(ss.str());
+        success ? OpenSync::Logger::info(ss.str()) : OpenSync::Logger::error(ss.str());
     }
 }

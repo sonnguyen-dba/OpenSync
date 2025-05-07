@@ -42,6 +42,7 @@ std::unique_ptr<DBConnector> DBConnectorFactory::createConnector(
         return std::make_unique<MSSQLConnector>(connStr);
     }*/
 
-    Logger::error("❌ Unsupported DB type in factory: " + dbType);
+    OpenSync::Logger::error("❌ Unsupported DB type in factory: " + dbType);
     return nullptr;
 }
+

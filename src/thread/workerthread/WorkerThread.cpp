@@ -33,7 +33,7 @@ void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atom
                 if (!batch.sqls.empty()) {
                     auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastMessageTimes[tableKey]).count();
                     if (elapsedMs >= batchFlushIntervalMs) {
-                        Logger::debug("⏱️ Flushing timeout batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
+                        OpenSync::Logger::debug("⏱️ Flushing timeout batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
                         dbWriteQueue.push({tableKey, std::move(batch)});
                         batches[tableKey] = TableBatch{};
                         lastMessageTimes[tableKey] = now;
@@ -59,7 +59,7 @@ void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atom
             lastMessageTimes[tableKey] = now;
 
             if (batch.sqls.size() >= batchSize) {
-                Logger::debug("📦 Flushing full batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
+                OpenSync::Logger::debug("📦 Flushing full batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
                 dbWriteQueue.push({tableKey, std::move(batch)});
                 batches[tableKey] = TableBatch{};
                 lastMessageTimes[tableKey] = now;
@@ -71,7 +71,7 @@ void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atom
     Logger::info("⚙️ Worker shutting down. Flushing remaining batches...");
     for (auto& [tableKey, batch] : batches) {
         if (!batch.sqls.empty()) {
-            Logger::info("🧹 Final batch flush: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
+            OpenSync::Logger::info("🧹 Final batch flush: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
             dbWriteQueue.push({tableKey, std::move(batch)});
         }
     }
@@ -80,7 +80,7 @@ void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atom
     std::tuple<std::string, int, int64_t, int64_t, rd_kafka_message_t*> itemLeft;
     while (kafkaMessageQueue.try_pop(itemLeft)) {
         auto& [message, partition, offset, timestamp, rawMsg] = itemLeft;
-        //Logger::info("Processing message, size: " + std::to_string(message.size() / 1024) + " KB");
+        //OpenSync::Logger::info("Processing message, size: " + std::to_string(message.size() / 1024) + " KB");
         auto batchMap = processor.processMessageByTable(message, partition, offset, timestamp);
         //auto now = std::chrono::steady_clock::now();
         for (auto& [tableKey, sqls] : batchMap) {
@@ -90,7 +90,7 @@ void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atom
                 batch.messages.push_back(rawMsg);
             }
             if (batch.sqls.size() >= batchSize) {
-                Logger::info("🧹 Flushing Kafka left batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
+                OpenSync::Logger::info("🧹 Flushing Kafka left batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
                 dbWriteQueue.push({tableKey, std::move(batch)});
                 batches[tableKey] = TableBatch{};
             }
@@ -100,7 +100,7 @@ void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atom
     // Flush final
     for (auto& [tableKey, batch] : batches) {
         if (!batch.sqls.empty()) {
-            Logger::info("🧹 Flushing Kafka left final batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
+            OpenSync::Logger::info("🧹 Flushing Kafka left final batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
             dbWriteQueue.push({tableKey, std::move(batch)});
         }
     }

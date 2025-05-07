@@ -28,7 +28,7 @@ void CheckpointManager::loadCheckpointFromFile() {
 
     std::ifstream inFile(checkpointFilePath);
     if (!inFile.is_open()) {
-	Logger::error("❌ [CheckpointManager] No checkpoint file found at " + checkpointFilePath + ". Starting fresh.");
+	      OpenSync::Logger::error("❌ [CheckpointManager] No checkpoint file found at " + checkpointFilePath + ". Starting fresh.");
         return;
     }
 
@@ -41,7 +41,7 @@ void CheckpointManager::loadCheckpointFromFile() {
             checkpointMap[topicPartition] = offset;
         }
     }
-    Logger::info("✅ Checkpoint loaded " + std::to_string(checkpointMap.size()) + " offsets from checkpoint file.");
+    OpenSync::Logger::info("✅ Checkpoint loaded " + std::to_string(checkpointMap.size()) + " offsets from checkpoint file.");
 }
 
 void CheckpointManager::updateCheckpoint(const std::string& topic, int partition, int64_t offset) {
@@ -62,15 +62,15 @@ void CheckpointManager::flushToDisk() {
 
     std::ofstream outFile(checkpointFilePath, std::ios::trunc);
     if (!outFile.is_open()) {
-	Logger::error("❌ Checkpoint failed to open file for writing: " + checkpointFilePath );
-        return;
+	       OpenSync::Logger::error("❌ Checkpoint failed to open file for writing: " + checkpointFilePath );
+         return;
     }
 
     for (const auto& [key, offset] : checkpointMap) {
         outFile << key << " " << offset << "\n";
     }
 
-    Logger::info("✅ Checkpoint flushed checkpoint to disk. Total entries: " + std::to_string(checkpointMap.size()));
+    OpenSync::Logger::info("✅ Checkpoint flushed checkpoint to disk. Total entries: " + std::to_string(checkpointMap.size()));
 }
 
 void CheckpointManager::startAutoFlush(int intervalSeconds) {
@@ -83,7 +83,7 @@ void CheckpointManager::startAutoFlush(int intervalSeconds) {
         }
     });
 
-    Logger::info("⏳ Checkpoint auto flush thread started (interval: " + std::to_string(intervalSeconds) + "s)");
+    OpenSync::Logger::info("⏳ Checkpoint auto flush thread started (interval: " + std::to_string(intervalSeconds) + "s)");
 }
 
 void CheckpointManager::stopAutoFlush() {
@@ -91,7 +91,6 @@ void CheckpointManager::stopAutoFlush() {
 
     if (flushThread.joinable()) {
         flushThread.join();
-	Logger::info("✅ Checkpoint auto flush thread stopped.");
+	      OpenSync::Logger::info("✅ Checkpoint auto flush thread stopped.");
     }
 }
-

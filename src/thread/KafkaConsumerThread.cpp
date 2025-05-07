@@ -18,21 +18,21 @@ void kafkaConsumerThread(KafkaConsumer& consumer, std::atomic<bool>& shouldShutd
             kafkaMessageQueue.push({message, partition, offset, timestamp, rawMsg});
             std::stringstream ss;
             ss << "Pushed message to kafkaMessageQueue (offset: " << offset << ")";
-            Logger::debug(ss.str());
+            OpenSync::Logger::debug(ss.str());
 
             // Log messages/s mỗi 10 giây
             auto current_time = std::chrono::steady_clock::now();
             auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time).count();
             if (elapsed_ms >= 10'000) {
                 double messages_per_sec = static_cast<double>(message_count) / (elapsed_ms / 1000.0);
-                Logger::info("Consumer messages/s: " + std::to_string(messages_per_sec));
+                OpenSync::Logger::info("Consumer messages/s: " + std::to_string(messages_per_sec));
                 message_count = 0;
                 start_time = current_time;
             }
         } // Loại bỏ sleep 1000ms để tăng tần suất poll()
     }
 
-    Logger::info("Shutting down Kafka consumer thread...");
+    OpenSync::Logger::info("Shutting down Kafka consumer thread...");
 }
 
 void startKafkaConsumer(KafkaConsumer& consumer, std::atomic<bool>& shouldShutdown) {

@@ -20,6 +20,8 @@ public:
     static FilterConfigLoader& getInstance();
 
     bool loadConfig(const std::string& filePath);
+    bool loadConfig(const std::string& filePath, const std::string& dbType);
+
     std::string getPKIndex(const std::string& fullTableName) const;
     std::vector<FilterEntry> getAllFilters() const;
     std::unordered_map<std::string, std::string> getPrimaryKeyColumns() const;
@@ -30,6 +32,7 @@ private:
     std::unordered_map<std::string, std::string> pkIndexMap;
     //std::vector<FilterEntry> getAllFilters() const;
 
+
     // Disallow external construction/copy
     FilterConfigLoader() = default;
     ~FilterConfigLoader() = default;
@@ -38,3 +41,4 @@ private:
 };
 
 #endif // FILTER_CONFIG_LOADER_H
+

@@ -22,7 +22,7 @@ DBConnector* WriteDataToDB::getConnectorForThread(const std::string& dbType) {
     auto& threadMap = dbConnectorPools[dbType];
     if (threadMap.find(threadId) == threadMap.end()) {
         if (connectorFactories.find(dbType) == connectorFactories.end()) {
-	    Logger::error("No factory registered for DB type: " + dbType);
+	          OpenSync::Logger::error("No factory registered for DB type: " + dbType);
             return nullptr;
         }
         threadMap[threadId] = connectorFactories[dbType]();
@@ -51,15 +51,15 @@ bool WriteDataToDB::writeToDB(const std::string& dbType, const std::vector<std::
     if (!dbConnector) return false;
 
     if (!dbConnector->isConnected() && !dbConnector->connect()) {
-	Logger::error("Failed to connect to " + dbType);
-        return false;
+	       OpenSync::Logger::error("Failed to connect to " + dbType);
+         return false;
     }
 
     bool success = true;
     for (const auto& sql : sqlQueries) {
         if (!dbConnector->executeQuery(sql)) {
             success = false;
-	    Logger::error("❌ SQL execution failed: " + sql);
+	          OpenSync::Logger::error("❌ SQL execution failed: " + sql);
         }
     }
 
@@ -73,7 +73,7 @@ bool WriteDataToDB::writeBatchToDB(const std::string& dbType,
     if (!dbConnector) return false;
 
     if (!dbConnector->isConnected() && !dbConnector->connect()) {
-	Logger::error("Failed to connect to " + dbType);
+	      OpenSync::Logger::error("Failed to connect to " + dbType);
         return false;
     }
 
@@ -96,7 +96,7 @@ bool WriteDataToDB::writeBatchToDB(const std::string& dbType,
             size_t oldSize = buf.size();
             std::vector<std::string>().swap(buf);  // shrink to fit
             tableSQLBuffer.erase(it); // hoặc giữ lại nếu cần reuse
-	          Logger::info("🧽 Flushed and cleaned buffer for table: " + tableKey +
+	          OpenSync::Logger::info("🧽 Flushed and cleaned buffer for table: " + tableKey +
                          ", oldSize=" + std::to_string(oldSize) +
                          ", released capacity=" + std::to_string(oldCap));
             MetricsExporter::getInstance().setGauge("table_sql_buffer_size", 0, {{"table", tableKey}});
@@ -108,7 +108,7 @@ bool WriteDataToDB::writeBatchToDB(const std::string& dbType,
 
 std::unique_ptr<DBConnector> WriteDataToDB::cloneConnector(const std::string& dbType) {
     if (connectorFactories.find(dbType) == connectorFactories.end()) {
-	      Logger::error("Cannot clone: No factory registered for DB type " + dbType);
+	      OpenSync::Logger::error("Cannot clone: No factory registered for DB type " + dbType);
         return nullptr;
     }
     return connectorFactories[dbType]();
@@ -117,7 +117,7 @@ std::unique_ptr<DBConnector> WriteDataToDB::cloneConnector(const std::string& db
 std::mutex& WriteDataToDB::getTableMutex(const std::string& tableKey) {
     std::lock_guard<std::mutex> lock(mutexMapLock);
     if (tableMutexMap.find(tableKey) == tableMutexMap.end()) {
-	     Logger::info("🧵 Creating mutex for table: " + tableKey);
+	     OpenSync::Logger::info("🧵 Creating mutex for table: " + tableKey);
     }
     return tableMutexMap[tableKey];
 }
@@ -138,28 +138,22 @@ void WriteDataToDB::reportTableSQLBufferMetrics() {
 
 void WriteDataToDB::addToTableSQLBuffer(const std::string& tableKey, const std::string& sql) {
     std::lock_guard<std::mutex> lock(tableBufferMutex);
-    Logger::info("addToTableSQLBuffer called for " + tableKey + ", SQL size: " + std::to_string(sql.size()) + " bytes");
+    OpenSync::Logger::info("addToTableSQLBuffer called for " + tableKey + ", SQL size: " + std::to_string(sql.size()) + " bytes");
     tableSQLBuffer[tableKey].push_back(sql);
 }
 
-/*std::unordered_map<std::string, std::vector<std::string>> WriteDataToDB::drainTableSQLBuffers() {
-    std::lock_guard<std::mutex> lock(tableBufferMutex);
-    std::unordered_map<std::string, std::vector<std::string>> drained;
-    drained.swap(tableSQLBuffer);
-    return drained;
-}*/
 std::unordered_map<std::string, std::vector<std::string>> WriteDataToDB::drainTableSQLBuffers() {
     std::lock_guard<std::mutex> lock(tableBufferMutex);
     std::unordered_map<std::string, std::vector<std::string>> drained;
     drained.swap(tableSQLBuffer); // Chuyển nội dung sang drained, tableSQLBuffer rỗng
     for (auto& [table, sqls] : drained) {
-        Logger::info("Drained tableSQLBuffer for " + table + ", size: " + std::to_string(sqls.size()) + " SQLs");
+        OpenSync::Logger::info("Drained tableSQLBuffer for " + table + ", size: " + std::to_string(sqls.size()) + " SQLs");
         sqls.shrink_to_fit(); // Thu gọn vector<std::string>
     }
     // Thu gọn tableSQLBuffer bằng cách swap với map mới
     std::unordered_map<std::string, std::vector<std::string>> emptyMap;
     tableSQLBuffer.swap(emptyMap);
-    Logger::info("Drained tableSQLBuffer, tables: " + std::to_string(drained.size()));
+    OpenSync::Logger::info("Drained tableSQLBuffer, tables: " + std::to_string(drained.size()));
     return drained;
 }
 

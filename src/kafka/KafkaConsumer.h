@@ -14,20 +14,24 @@ namespace fs = std::filesystem;
 
 class KafkaConsumer {
 public:
+    //KafkaConsumer(const std::string& brokers, const std::string& topic, const std::string& groupId);
+    /*KafkaConsumer(const std::string& brokers, const std::string& topic,
+                  const std::string& groupId, const std::string& reset, MetricsServer& metrics);*/
 
     KafkaConsumer(KafkaProcessor& processor, const std::string& brokers, const std::string& topic,
-                  const std::string& groupId, const std::string& offsetReset, MetricsServer& metrics, const std::string& filterConfigPath, const std::string& enableAutoCommit = "false");
+                  const std::string& groupId, const std::string& offsetReset, const std::string& enableAutoCommit, MetricsServer& metrics, const std::string& filterConfigPath);
     ~KafkaConsumer();
 
     // 🆕 Sửa đổi để trả về partition, offset, timestamp
     bool consumeMessage(std::string& message, int& partition, int64_t& offset, int64_t& timestamp, rd_kafka_message_t** rawMsg);
 
+    //bool consumeMessage(std::string& message);
     void loadTableFilter(const std::string& configPath);  // 🔹 Thêm khai báo hàm loadTableFilter
     void startAutoReload(const std::string& configPath);
     void reloadTableFilter(const std::string& configPath);
     bool isTableFiltered(const std::string& owner, const std::string& table);  // 🔹 Thêm khai báo hàm isTableFiltered
     void printPartitionOffset(int partition, int64_t offset, int64_t timestamp, const std::string& table); // Hiển thị partition & offset
-    void printFilteredTables();
+    void printFilteredTables(); 
     void commitOffset(rd_kafka_message_t* message);
 
     static void rebalanceCallback(rd_kafka_t* rk,
@@ -48,8 +52,9 @@ private:
     std::atomic<bool> stopReloading;
     std::thread reloadThread;
     std::string filterConfigPath;
-
+    //std::filesystem::file_time_type lastModifiedTime;
     fs::file_time_type lastModifiedTime = fs::last_write_time(fs::path(filterConfigPath));
+
 
     rd_kafka_t* consumer;
     rd_kafka_conf_t* conf;
@@ -61,9 +66,10 @@ private:
     std::string enableAutoCommit = "false";
     std::unordered_set<std::string> tableFilter;  // 🔹 Lưu danh sách bảng cần lọc
     void reloadFilterConfigLoop(); //thread chay nen
-
+    
     void initKafka(const std::string& offsetReset);
     std::atomic<bool> shouldShutdown = false;
 };
 
 #endif
+

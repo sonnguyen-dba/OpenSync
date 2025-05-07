@@ -8,4 +8,7 @@
 
 extern ThreadSafeQueue<std::tuple<std::string, TableBatch>> dbWriteQueue;
 
+//void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std::string& dbType);
 void dbWriterThread(WriteDataToDB& writeData, KafkaConsumer& consumer, const std::string& dbType, std::atomic<bool>& shutdown);
+
+

@@ -5,8 +5,6 @@
 #include "../logger/Logger.h"
 #include <sstream>
 
-//PostgreSQLSQLBuilder::PostgreSQLSQLBuilder(const ConfigLoader& config) : config(config) {}
-
 PostgreSQLSQLBuilder::PostgreSQLSQLBuilder(const ConfigLoader& config, bool enableISODebugLog)
     : config(config), enableISODebugLog(enableISODebugLog) {}
 
@@ -32,7 +30,7 @@ std::string PostgreSQLSQLBuilder::buildInsertSQL(const std::string& schema, cons
 
         columns << "\"" << col << "\"";
         //values << SQLUtils::safeConvert("postgresql", fullTable, col, val);
-	values << SQLUtils::safeConvert("postgresql", fullTable, col, val, false); // ✅ rõ ràng
+	      values << SQLUtils::safeConvert("postgresql", fullTable, col, val, false); // ✅ rõ ràng
     }
 
     sql << "INSERT INTO " << fullTable << " (" << columns.str() << ") VALUES (" << values.str() << ")";
@@ -58,8 +56,7 @@ std::string PostgreSQLSQLBuilder::buildUpdateSQL(const std::string& schema, cons
 
         if (col == primaryKey) {
             //pkValue = SQLUtils::safeConvert("postgresql", fullTable, col, val);
-	    pkValue = SQLUtils::safeConvert("postgresql", fullTable, col, val, false); // ✅ rõ ràng
-
+	          pkValue = SQLUtils::safeConvert("postgresql", fullTable, col, val, false); // ✅ rõ ràng
             continue;
         }
 
@@ -67,7 +64,7 @@ std::string PostgreSQLSQLBuilder::buildUpdateSQL(const std::string& schema, cons
         first = false;
 
         //setClause << "\"" << col << "\" = " << SQLUtils::safeConvert("postgresql", fullTable, col, val);
-	setClause << "\"" << col << "\" = " << SQLUtils::safeConvert("postgresql", fullTable, col, val, false); // ✅ rõ ràng
+	      setClause << "\"" << col << "\" = " << SQLUtils::safeConvert("postgresql", fullTable, col, val, false); // ✅ rõ ràng
     }
 
     sql << "UPDATE " << fullTable << " SET " << setClause.str()

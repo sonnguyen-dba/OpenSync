@@ -3,7 +3,7 @@
 
 #include "DBConnector.h"
 #include "../db/oracle/OracleConnector.h"
-//#include "PostgreSQLConnector.h"
+#include "../db/postgresql/PostgreSQLConnector.h"
 //#include "MySQLConnector.h"
 //#include "MSSQLConnector.h"
 #include <memory>

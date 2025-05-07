@@ -14,6 +14,13 @@
 #include "../schema/OracleColumnInfo.h"
 #include "../sqlbuilder/SQLBuilderBase.h"
 
+
+/*struct FilterEntry {
+    std::string owner;
+    std::string table;
+    std::string primaryKey;
+};*/
+
 struct pair_hash {
     template <class T1, class T2>
     std::size_t operator()(const std::pair<T1, T2>& p) const {
@@ -51,6 +58,7 @@ public:
     std::string buildUpdateSQL(const std::string& schema, const std::string& table, const rapidjson::Value& data, const std::string& primaryKey);
     std::string buildDeleteSQL(const std::string& schema, const std::string& table, const rapidjson::Value& data, const std::string& primaryKey);
 
+    //void setKafkaTopic(const std::string& topic) { kafkaTopic = topic; }
     void setKafkaTopic(const std::string& topic);
 
     //Truy xuất Oracle PK index hint nếu có
@@ -68,6 +76,10 @@ public:
 
     void registerSQLBuilder(const std::string& dbType, std::unique_ptr<SQLBuilderBase> builder);
 
+    void setActiveDbType(const std::string& dbType) {
+    	this->activeDbType = dbType;
+    }
+
 private:
     std::optional<FilterEntry> matchFilter(const std::string& owner, const std::string& table);
     void updateProcessingRate();
@@ -75,6 +87,7 @@ private:
     std::vector<FilterEntry> filters;
     std::unordered_map<std::string, std::string> mapping;
     std::unordered_map<std::string, std::string> warnedTables;
+    //std::unordered_set<std::string> recentPrimaryKeyCache;
 
     std::mutex filterMutex;
     std::mutex dedupMutex;
@@ -124,8 +137,11 @@ private:
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> tableLagLastUpdate;
     std::unordered_map<std::pair<std::string, int>, std::chrono::steady_clock::time_point, pair_hash> partitionLagLastUpdate;
 
+
     void shrinkLagBuffers(const std::string& tableKey, const std::pair<std::string, int>& tp);
 
     std::unordered_map<std::string, std::unique_ptr<SQLBuilderBase>> sqlBuilders;
+
+    std::string activeDbType = "oracle";
 
 };

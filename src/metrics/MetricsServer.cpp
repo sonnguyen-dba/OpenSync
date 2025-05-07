@@ -19,10 +19,12 @@ void MetricsServer::start() {
 
     serverThread = std::thread([this]() {
         try {
-	          Logger::info("Starting Prometheus metrics, listening on: 0.0.0.0:" + std::to_string(port));
+	    //LOG_INFO("Starting Prometheus metrics, listening on: 0.0.0.0:" + std::to_string(port));
+	    OpenSync::Logger::info("Starting Prometheus metrics, listening on: 0.0.0.0:" + std::to_string(port));
             server.listen("0.0.0.0", port);
         } catch (const std::exception& e) {
-	          Logger::info("MetricsServer crashed: " + std::string(e.what()));
+            //LOG_ERROR("MetricsServer crashed: " + std::string(e.what()));
+	    OpenSync::Logger::info("MetricsServer crashed: " + std::string(e.what()));
         }
     });
 
@@ -35,8 +37,9 @@ void MetricsServer::stop() {
     }
 }
 
-// 🆕 this call from KafkaConsumer when receive message
+// 🆕 Hàm này sẽ được gọi từ KafkaConsumer khi nhận được message
 void MetricsServer::incrementProcessedMessages() {
     processedMessages++;
-    Logger::info("Metrics updated: kafka_messages_processed = " + std::to_string(processedMessages.load()));
+    //LOG_INFO("Metrics updated: kafka_messages_processed = " + std::to_string(processedMessages.load()));
+    OpenSync::Logger::info("Metrics updated: kafka_messages_processed = " + std::to_string(processedMessages.load()));
 }

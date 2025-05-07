@@ -64,7 +64,9 @@ list(APPEND ListConfig
 )
 
 list(APPEND ListOracle db/oracle/OracleConnector.cpp)
-list(APPEND ListPostgreSQL db/postgresql/PostgreSQLConnector.cpp)
+list(APPEND ListPostgreSQL
+            db/postgresql/PostgreSQLConnector.cpp
+            db/postgresql/ConnectorUtils.cpp)
 list(APPEND ListDBConnector dbconnector/DBConnectorFactory.cpp)
 
 list(APPEND ListException

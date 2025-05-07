@@ -1,7 +1,9 @@
 #include "PostgreSQLConnector.h"
 #include "../../schema/PostgreSQLColumnInfo.h"
 #include "../../logger/Logger.h"
+#include "../../utils/SQLUtils.h"
 #include <sstream>
+#include <algorithm>
 
 PostgreSQLConnector::PostgreSQLConnector(const std::string& host,
                                          int port,
@@ -26,11 +28,11 @@ bool PostgreSQLConnector::connect() {
     conn = PQconnectdb(connStr.str().c_str());
 
     if (PQstatus(conn) != CONNECTION_OK) {
-        Logger::error("❌ PostgreSQL connection failed: " + std::string(PQerrorMessage(conn)));
+        OpenSync::Logger::error("❌ PostgreSQL connection failed: " + std::string(PQerrorMessage(conn)));
         return false;
     }
 
-    Logger::info("✅ Connected to PostgreSQL successfully");
+    OpenSync::Logger::info("✅ Connected to PostgreSQL successfully");
     return true;
 }
 
@@ -43,7 +45,7 @@ bool PostgreSQLConnector::executeQuery(const std::string& sql) {
 
     PGresult* res = PQexec(conn, sql.c_str());
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-        Logger::error("❌ PostgreSQL execution failed: " + std::string(PQerrorMessage(conn)) + " | SQL: " + sql);
+        OpenSync::Logger::error("❌ PostgreSQL execution failed: " + std::string(PQerrorMessage(conn)) + " | SQL: " + sql);
         PQclear(res);
         return false;
     }
@@ -76,7 +78,7 @@ std::map<std::string, std::string> PostgreSQLConnector::getColumnTypes(const std
 
     PGresult* res = PQexec(conn, query.str().c_str());
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-        Logger::warn("⚠️ Failed to get column types for table " + fullTableName + ": " + PQerrorMessage(conn));
+        OpenSync::Logger::warn("⚠️ Failed to get column types for table " + fullTableName + ": " + PQerrorMessage(conn));
         PQclear(res);
         return colTypes;
     }
@@ -113,7 +115,7 @@ std::map<std::string, std::string> PostgreSQLConnector::getPrimaryKeys(const std
 
     PGresult* res = PQexec(conn, query.str().c_str());
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-        Logger::warn("⚠️ Failed to get primary keys for table " + fullTableName + ": " + PQerrorMessage(conn));
+        OpenSync::Logger::warn("⚠️ Failed to get primary keys for table " + fullTableName + ": " + PQerrorMessage(conn));
         PQclear(res);
         return pkMap;
     }
@@ -140,10 +142,46 @@ void PostgreSQLConnector::disconnect() {
     return executeStatementSQL(sql);
 }*/
 
-
 bool PostgreSQLConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch) {
     if (!isConnected() && !connect()) {
-        Logger::error("PostgreSQLConnector not connected.");
+        OpenSync::Logger::error("PostgreSQLConnector not connected.");
+        return false;
+    }
+
+    for (size_t i = 0; i < sqlBatch.size(); ++i) {
+        const std::string& sql = sqlBatch[i];
+
+        OpenSync::Logger::debug("🔢 Executing SQL [" + std::to_string(i + 1) + "/" + std::to_string(sqlBatch.size()) + "]: " + sql);
+
+        PGresult* res = PQexec(conn, sql.c_str());
+
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+            std::string errMsg = PQresultErrorMessage(res);
+            PQclear(res);
+
+            OpenSync::Logger::error("❌ PostgreSQL INSERT failed. SQL: " + sql);
+            OpenSync::Logger::error("🔎 PostgreSQL error message: " + errMsg);
+
+            // Check for duplicate key → return false to trigger fallback
+            if (errMsg.find("duplicate key") != std::string::npos) {
+                OpenSync::Logger::warn("⚠️ Detected duplicate key violation. Fallback to UPSERT may be needed.");
+                return false;
+            }
+
+            return false;
+        }
+
+        PQclear(res);
+        OpenSync::Logger::debug("✅ SQL executed successfully.");
+    }
+
+    return true;
+}
+
+
+/*bool PostgreSQLConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch) {
+    if (!isConnected() && !connect()) {
+        OpenSync::Logger::error("PostgreSQLConnector not connected.");
         return false;
     }
 
@@ -155,12 +193,12 @@ bool PostgreSQLConnector::executeBatchQuery(const std::vector<std::string>& sqlB
             PQclear(res);
 
             // 🔥 Logging chi tiết lỗi
-            Logger::error("❌ PostgreSQL INSERT failed. SQL: " + sql);
-            Logger::error("🔎 PostgreSQL error message: " + errMsg);
+            OpenSync::Logger::error("❌ PostgreSQL INSERT failed. SQL: " + sql);
+            OpenSync::Logger::error("🔎 PostgreSQL error message: " + errMsg);
 
             // Check for duplicate key → return false to trigger fallback
             if (errMsg.find("duplicate key") != std::string::npos) {
-                Logger::warn("⚠️ Detected duplicate key violation. Fallback to UPSERT may be needed.");
+                OpenSync::Logger::warn("⚠️ Detected duplicate key violation. Fallback to UPSERT may be needed.");
                 return false;
             }
 
@@ -171,7 +209,7 @@ bool PostgreSQLConnector::executeBatchQuery(const std::vector<std::string>& sqlB
     }
 
     return true;
-}
+}*/
 
 /*bool PostgreSQLConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch) {
     if (!isConnected()) return false;
@@ -186,7 +224,7 @@ bool PostgreSQLConnector::executeBatchQuery(const std::vector<std::string>& sqlB
 
  /*bool PostgreSQLConnector::executeStatementSQL(const std::string& sql) {
     if (!isConnected() && !connect()) {
-        Logger::error("PostgreSQLConnector not connected.");
+        OpenSync::Logger::error("PostgreSQLConnector not connected.");
         return false;
     }
 
@@ -195,8 +233,8 @@ bool PostgreSQLConnector::executeBatchQuery(const std::vector<std::string>& sqlB
         std::string errMsg = PQresultErrorMessage(res);
         PQclear(res);
 
-        Logger::error("❌ PostgreSQL SQL execution failed: " + sql);
-        Logger::error("🔎 Error message: " + errMsg);
+        OpenSync::Logger::error("❌ PostgreSQL SQL execution failed: " + sql);
+        OpenSync::Logger::error("🔎 Error message: " + errMsg);
 
         return false;
     }
@@ -205,31 +243,34 @@ bool PostgreSQLConnector::executeBatchQuery(const std::vector<std::string>& sqlB
     return true;
 }*/
 
-std::vector<PostgreSQLColumnInfo> PostgreSQLConnector::getFullColumnInfo(const std::string& fullTableName) {
+/*std::vector<PostgreSQLColumnInfo> PostgreSQLConnector::getFullColumnInfo(const std::string& fullTableName) {
     std::vector<PostgreSQLColumnInfo> result;
 
     if (!isConnected() && !connect()) {
-        Logger::error("PostgreSQL: Failed to connect for schema query");
+        OpenSync::Logger::error("PostgreSQL: Failed to connect for schema query");
         return result;
     }
 
     // 🧠 Tách schema.table → schema + table
     size_t dotPos = fullTableName.find('.');
     if (dotPos == std::string::npos) {
-        Logger::error("Invalid fullTableName format (expected schema.table): " + fullTableName);
+        OpenSync::Logger::error("Invalid fullTableName format (expected schema.table): " + fullTableName);
         return result;
     }
 
     std::string schema = fullTableName.substr(0, dotPos);
     std::string table = fullTableName.substr(dotPos + 1);
 
+    std::transform(schema.begin(), schema.end(), schema.begin(), ::tolower);
+    std::transform(table.begin(), table.end(), table.begin(), ::tolower);
+
     std::string sql =
         "SELECT column_name, data_type, character_maximum_length, numeric_precision, numeric_scale, is_nullable "
         "FROM information_schema.columns WHERE table_schema = '" + schema + "' AND table_name = '" + table + "'";
 
     PGresult* res = PQexec(conn, sql.c_str());
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-        Logger::error("Failed to fetch schema for table: " + fullTableName);
+        OpenSync::Logger::error("Failed to fetch schema for table: " + fullTableName);
         PQclear(res);
         return result;
     }
@@ -239,49 +280,115 @@ std::vector<PostgreSQLColumnInfo> PostgreSQLConnector::getFullColumnInfo(const s
         PostgreSQLColumnInfo col;
         col.columnName = PQgetvalue(res, i, 0);
         col.dataType = PQgetvalue(res, i, 1);
-        col.charMaxLength = PQgetvalue(res, i, 2) ? std::atoi(PQgetvalue(res, i, 2)) : -1;
-        col.numericPrecision = PQgetvalue(res, i, 3) ? std::atoi(PQgetvalue(res, i, 3)) : -1;
-        col.numericScale = PQgetvalue(res, i, 4) ? std::atoi(PQgetvalue(res, i, 4)) : -1;
-        col.nullable = std::string(PQgetvalue(res, i, 5)) == "YES";
-        result.push_back(std::move(col));
-    }
 
-    PQclear(res);
-    return result;
-}
+	col.charMaxLength     = PQgetisnull(res, i, 2) ? -1 : std::atoi(PQgetvalue(res, i, 2));
+        col.numericPrecision  = PQgetisnull(res, i, 3) ? -1 : std::atoi(PQgetvalue(res, i, 3));
+        col.numericScale      = PQgetisnull(res, i, 4) ? -1 : std::atoi(PQgetvalue(res, i, 4));
+        col.nullable          = std::string(PQgetvalue(res, i, 5)) == "YES";
 
-/*std::vector<PostgreSQLColumnInfo> PostgreSQLConnector::getFullColumnInfo(const std::string& fullTableName) {
-    std::vector<PostgreSQLColumnInfo> result;
-
-    if (!isConnected() && !connect()) {
-        Logger::error("PostgreSQL: Failed to connect for schema query");
-        return result;
-    }
-
-    std::string sql =
-        "SELECT column_name, data_type, character_maximum_length, numeric_precision, numeric_scale, is_nullable "
-        "FROM information_schema.columns WHERE table_schema = '" + schema + "' AND table_name = '" + table + "'";
-
-    PGresult* res = PQexec(conn, sql.c_str());
-    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-        Logger::error("Failed to fetch schema for table: " + fullTableName);
-        PQclear(res);
-        return result;
-    }
-
-    int nRows = PQntuples(res);
-    for (int i = 0; i < nRows; ++i) {
-        PostgreSQLColumnInfo col;
-        col.columnName = PQgetvalue(res, i, 0);
-        col.dataType = PQgetvalue(res, i, 1);
-        col.charMaxLength = PQgetvalue(res, i, 2) ? std::atoi(PQgetvalue(res, i, 2)) : -1;
-        col.numericPrecision = PQgetvalue(res, i, 3) ? std::atoi(PQgetvalue(res, i, 3)) : -1;
-        col.numericScale = PQgetvalue(res, i, 4) ? std::atoi(PQgetvalue(res, i, 4)) : -1;
-        col.nullable = std::string(PQgetvalue(res, i, 5)) == "YES";
         result.push_back(std::move(col));
     }
 
     PQclear(res);
     return result;
 }*/
+
+/*std::unordered_map<std::string, PostgreSQLColumnInfo> PostgreSQLConnector::getFullColumnInfo(const std::string& fullTableName) {
+    std::unordered_map<std::string, PostgreSQLColumnInfo> colMap;
+
+    if (!conn) return colMap;
+
+    std::string schema = "public";
+    std::string table = fullTableName;
+    size_t dot = fullTableName.find('.');
+    if (dot != std::string::npos) {
+        schema = fullTableName.substr(0, dot);
+        table = fullTableName.substr(dot + 1);
+    }
+
+    std::ostringstream query;
+    query << "SELECT column_name, data_type, character_maximum_length, "
+          << "numeric_precision, numeric_scale, is_nullable "
+          << "FROM information_schema.columns "
+          << "WHERE table_schema = '" << schema << "' AND table_name = '" << table << "'";
+
+    PGresult* res = PQexec(conn, query.str().c_str());
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        OpenSync::Logger::warn("⚠️ Failed to load schema: " + std::string(PQerrorMessage(conn)));
+        PQclear(res);
+        return colMap;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i) {
+        PostgreSQLColumnInfo info;
+        info.columnName = PQgetvalue(res, i, 0);
+        info.dataType = PQgetvalue(res, i, 1);
+        info.charMaxLength = std::atoi(PQgetvalue(res, i, 2));
+        info.numericPrecision = std::atoi(PQgetvalue(res, i, 3));
+        info.numericScale = std::atoi(PQgetvalue(res, i, 4));
+        info.nullable = (std::string(PQgetvalue(res, i, 5)) == "YES");
+        colMap[info.columnName] = info;
+    }
+
+    PQclear(res);
+    return colMap;
+}*/
+
+std::unordered_map<std::string, PostgreSQLColumnInfo>
+PostgreSQLConnector::getFullColumnInfo(const std::string& fullTableName) {
+    std::unordered_map<std::string, PostgreSQLColumnInfo> colMap;
+
+    if (!conn && !connect()) {
+        OpenSync::Logger::error("❌ PostgreSQLConnector: Not connected when loading schema for " + fullTableName);
+        return colMap;
+    }
+
+    std::string schema = "public";
+    std::string table = fullTableName;
+    size_t dot = fullTableName.find('.');
+    if (dot != std::string::npos) {
+        schema = fullTableName.substr(0, dot);
+        table = fullTableName.substr(dot + 1);
+    }
+
+    std::string lowerSchema = SQLUtils::toLower(schema);
+    std::string lowerTable  = SQLUtils::toLower(table);
+
+    std::ostringstream query;
+    query << "SELECT column_name, data_type, character_maximum_length, "
+          << "numeric_precision, numeric_scale, is_nullable "
+          << "FROM information_schema.columns "
+          << "WHERE lower(table_schema) = " << "'" << lowerSchema << "'"
+          << " AND lower(table_name) = " << "'" << lowerTable << "'";
+
+    PGresult* res = PQexec(conn, query.str().c_str());
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        OpenSync::Logger::warn("⚠️ Failed to fetch schema for " + fullTableName + ": " + PQerrorMessage(conn));
+        PQclear(res);
+        return colMap;
+    }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i) {
+        PostgreSQLColumnInfo col;
+        col.columnName       = SQLUtils::toLower(PQgetvalue(res, i, 0));
+        col.dataType         = SQLUtils::toLower(PQgetvalue(res, i, 1));
+        col.charMaxLength    = PQgetisnull(res, i, 2) ? -1 : std::atoi(PQgetvalue(res, i, 2));
+        col.numericPrecision = PQgetisnull(res, i, 3) ? -1 : std::atoi(PQgetvalue(res, i, 3));
+        col.numericScale     = PQgetisnull(res, i, 4) ? -1 : std::atoi(PQgetvalue(res, i, 4));
+        col.nullable         = std::string(PQgetvalue(res, i, 5)) == "YES";
+
+        colMap[col.columnName] = std::move(col);
+    }
+
+    PQclear(res);
+
+    OpenSync::Logger::info("✅ Loaded schema for " + lowerSchema + "." + lowerTable +
+                           " with " + std::to_string(colMap.size()) + " columns");
+
+    return colMap;
+}
+
+
 

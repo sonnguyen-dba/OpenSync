@@ -7,10 +7,11 @@
 
 OracleSQLBuilder::OracleSQLBuilder(ConfigLoader& config, bool enableLog)
     : config(config), enableISODebugLog(enableLog), timestamp_unit(config.getTimestampUnit()) {
-	      //Logger::info("OracleSQLBuilder initialized with timestamp_unit=" +
+	//OpenSync::Logger::info("OracleSQLBuilder initialized with timestamp_unit=" +
         //      std::to_string(timestamp_unit) +
         //         " (" + (timestamp_unit == 0 ? "nanosecond" : timestamp_unit == 1 ? "microsecond" : "millisecond") + ")");
-	       Logger::info("OracleSQLBuilder initialized with timestamp_unit=" + std::to_string(timestamp_unit));
+
+	OpenSync::Logger::info("OracleSQLBuilder initialized with timestamp_unit=" + std::to_string(timestamp_unit));
     }
 
 std::string OracleSQLBuilder::buildInsertSQL(const std::string& schema, const std::string& table, const rapidjson::Value& data) {
@@ -22,7 +23,7 @@ std::string OracleSQLBuilder::buildInsertSQL(const std::string& schema, const st
     const auto& colTypes = OracleSchemaCache::getInstance().getColumnTypes(fullTable);
 
     if (colTypes.empty()) {
-        Logger::warn("🔎 Oracle schema not found for table: " + fullTable + ", fallback to basic quoting");
+        OpenSync::Logger::warn("🔎 Oracle schema not found for table: " + fullTable + ", fallback to basic quoting");
     }
 
     bool first = true;
@@ -43,13 +44,13 @@ std::string OracleSQLBuilder::buildInsertSQL(const std::string& schema, const st
         if (enableISODebugLog) {
             std::string iso = SQLUtils::convertToISO8601(jsonVal);
             if (!iso.empty()) {
-                Logger::debug("🕓 ISO Timestamp | " + fullTable + "." + colName + " = " + iso);
+                OpenSync::Logger::debug("🕓 ISO Timestamp | " + fullTable + "." + colName + " = " + iso);
             }
         }
     }
 
     sql << "INSERT INTO " << fullTable << " (" << columns.str() << ") VALUES (" << values.str() << ")";
-    Logger::debug("SQL: " + sql.str());
+    OpenSync::Logger::debug("SQL: " + sql.str());
     return sql.str();
 }
 
@@ -87,7 +88,7 @@ std::string OracleSQLBuilder::buildDeleteSQL(const std::string& schema, const st
     std::string fullTable = schema + "." + table;
 
     if (!data.HasMember(primaryKey.c_str())) {
-        Logger::warn("⚠️ Missing primary key [" + primaryKey + "] in data for DELETE");
+        OpenSync::Logger::warn("⚠️ Missing primary key [" + primaryKey + "] in data for DELETE");
         return "";
     }
 
