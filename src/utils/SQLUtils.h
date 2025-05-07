@@ -9,7 +9,8 @@ class SQLUtils {
 public:
     static std::string convertToSQLValue(const rapidjson::Value& val);
     static std::string convertToSQLValue(const rapidjson::Value& val, const std::string& colName);
-
+    static bool isPostgreSQLTimestampOutOfRange(const std::string& timestampStr);
+    
     static std::string convertToSQLValueWithType(
         const rapidjson::Value& val,
         const std::string& dbType,
@@ -66,4 +67,3 @@ public:
 
     static std::string toLower(const std::string& input);
 };
-

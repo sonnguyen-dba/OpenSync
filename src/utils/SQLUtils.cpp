@@ -5,6 +5,7 @@
 #include "../schema/PostgreSQLSchemaCache.h"
 #include <sstream>
 #include <iomanip>
+#include <string>
 #include <algorithm>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
@@ -37,6 +38,18 @@ std::string SQLUtils::convertToSQLValue(const Value& val, const std::string& col
         OpenSync::Logger::warn("Failed to convert value for column " + colName + ": " + ex.what());
         return "NULL";
     }
+}
+
+bool SQLUtils::isPostgreSQLTimestampOutOfRange(const std::string& timestampStr) {
+    if (!timestampStr.empty() && timestampStr[0] == '-') {
+        try {
+            int year = std::stoi(timestampStr.substr(1, 4));
+            return year > 4713;
+        } catch (...) {
+            return true;
+        }
+    }
+    return false;
 }
 
 std::string SQLUtils::convertToSQLValueWithType(
@@ -204,7 +217,8 @@ std::string SQLUtils::convertToISO8601(const rapidjson::Value& val) {
 }
 
 // PostgreSQL logic
-std::string SQLUtils::safeConvertPostgreSQL(
+
+/*std::string SQLUtils::safeConvertPostgreSQL(
     const Value& val,
     const PostgreSQLColumnInfo& colInfo,
     const std::string& tableName,
@@ -217,11 +231,17 @@ std::string SQLUtils::safeConvertPostgreSQL(
     const std::string& dataType = colInfo.dataType;
 
     try {
-        if (dataType == "timestamp" || dataType == "timestamp without time zone") {
-            int64_t microsec = extractMicroseconds(val, timestamp_unit);
-            std::string formatted = TimeUtils::convertMicrosecondsToTimestamp(microsec);
-            return "'" + formatted + "'";
-        }
+	if (dataType == "timestamp" || dataType == "timestamp without time zone") {
+	    int64_t microsec = extractMicroseconds(val, timestamp_unit);
+
+	    if (microsec < -3786825600000000 || microsec > 4102444800000000) {
+		OpenSync::Logger::warn("⛔ PostgreSQL timestamp out of range: " + std::to_string(microsec) + " (" + tableName + "." + colName + ")");
+	        return "NULL";
+	    }
+
+	    std::string formatted = TimeUtils::convertMicrosecondsToTimestamp(microsec);
+	    return "'" + formatted + "'";
+	}
         if (dataType == "date") {
             int64_t microsec = extractMicroseconds(val, timestamp_unit);
             std::string formatted = TimeUtils::convertMicrosecondsToDate(microsec);
@@ -248,7 +268,69 @@ std::string SQLUtils::safeConvertPostgreSQL(
                                " with type=" + dataType + ": " + ex.what());
         return "NULL";
     }
+}*/
+
+std::string SQLUtils::safeConvertPostgreSQL(
+    const Value& val,
+    const PostgreSQLColumnInfo& colInfo,
+    const std::string& tableName,
+    const std::string& colName,
+    bool useISO8601ForDebug,
+    int timestamp_unit)
+{
+    (void)useISO8601ForDebug;
+    if (val.IsNull()) return "NULL";
+
+    const std::string& dataType = colInfo.dataType;
+
+    try {
+        if (dataType == "timestamp" || dataType == "timestamp without time zone") {
+            int64_t microsec = extractMicroseconds(val, timestamp_unit);
+
+            constexpr int64_t MIN_US = -3786825600000000;  // ~1850-01-01
+            constexpr int64_t MAX_US = 4102444800000000;   // ~2100-01-01
+            if (microsec < MIN_US || microsec > MAX_US) {
+                std::string formatted = TimeUtils::convertMicrosecondsToTimestamp(microsec);
+                OpenSync::Logger::warn("⛔ PostgreSQL timestamp out of range: " + formatted +
+                                       " (" + tableName + "." + colName + ")");
+                return "NULL";
+            }
+
+            std::string formatted = TimeUtils::convertMicrosecondsToTimestamp(microsec);
+            return "'" + formatted + "'";
+        }
+
+        if (dataType == "date") {
+            int64_t microsec = extractMicroseconds(val, timestamp_unit);
+            std::string formatted = TimeUtils::convertMicrosecondsToDate(microsec);
+            return "'" + formatted + "'";
+        }
+
+        if (dataType.find("char") != std::string::npos || dataType == "text") {
+            return val.IsString() ? quoteString(val.GetString()) : quoteString("?");
+        }
+
+        if (dataType.find("int") != std::string::npos || dataType.find("numeric") != std::string::npos ||
+            dataType.find("float") != std::string::npos || dataType.find("double") != std::string::npos) {
+            if (val.IsNumber()) return std::to_string(val.GetDouble());
+            if (val.IsString()) return val.GetString();
+            return "NULL";
+        }
+
+        if (val.IsString()) return quoteString(val.GetString());
+
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        val.Accept(writer);
+        return quoteString(buffer.GetString());
+
+    } catch (const std::exception& ex) {
+        OpenSync::Logger::warn("[PG] Failed to convert value for " + tableName + "." + colName +
+                               " with type=" + dataType + ": " + ex.what());
+        return "NULL";
+    }
 }
+
 
 std::string SQLUtils::toLower(const std::string& input) {
     std::string result = input;
@@ -257,4 +339,3 @@ std::string SQLUtils::toLower(const std::string& input) {
     });
     return result;
 }
-
