@@ -142,7 +142,7 @@ void WriteDataToDB::addToTableSQLBuffer(const std::string& tableKey, const std::
     tableSQLBuffer[tableKey].push_back(sql);
 }
 
-std::unordered_map<std::string, std::vector<std::string>> WriteDataToDB::drainTableSQLBuffers() {
+/*std::unordered_map<std::string, std::vector<std::string>> WriteDataToDB::drainTableSQLBuffers() {
     std::lock_guard<std::mutex> lock(tableBufferMutex);
     std::unordered_map<std::string, std::vector<std::string>> drained;
     drained.swap(tableSQLBuffer); // Chuyển nội dung sang drained, tableSQLBuffer rỗng
@@ -154,6 +154,27 @@ std::unordered_map<std::string, std::vector<std::string>> WriteDataToDB::drainTa
     std::unordered_map<std::string, std::vector<std::string>> emptyMap;
     tableSQLBuffer.swap(emptyMap);
     OpenSync::Logger::info("Drained tableSQLBuffer, tables: " + std::to_string(drained.size()));
+    return drained;
+}*/
+
+std::unordered_map<std::string, std::vector<std::string>> WriteDataToDB::drainTableSQLBuffers() {
+    std::lock_guard<std::mutex> lock(tableBufferMutex);
+
+    // Chuyển ownership sang drained
+    std::unordered_map<std::string, std::vector<std::string>> drained;
+    drained.swap(tableSQLBuffer); // tableSQLBuffer sẽ tự động rỗng sau khi swap
+
+    size_t totalSQLs = 0;
+    for (auto& [table, sqls] : drained) {
+        totalSQLs += sqls.size();
+        sqls.shrink_to_fit(); // thu gọn bộ nhớ từng vector
+        OpenSync::Logger::debug("Drained tableSQLBuffer for " + table + ", size: " + std::to_string(sqls.size()) + " SQLs");
+    }
+
+    if (!drained.empty()) {
+        OpenSync::Logger::debug" 🧹 Drained tableSQLBuffer, tables: " + std::to_string(drained.size()));
+    }
+
     return drained;
 }
 
