@@ -19,18 +19,43 @@ std::unique_ptr<DBConnector> OracleConnector::clone() const {
     return std::make_unique<OracleConnector>(host, port, user, password, service);
 }
 
+/*
+ * This functions for wallet
+ *
+
+ OracleConnector::OracleConnector(const std::string& tnsAlias)
+    : tnsAlias(tnsAlias), env(nullptr), conn(nullptr) {}
+
+
+std::unique_ptr<DBConnector> OracleConnector::clone() const {
+    return std::make_unique<OracleConnector>(tnsAlias);
+}*/
+
 OracleConnector::~OracleConnector() {
     disconnect();
 }
+
+//wallet
+/*bool OracleConnector::connect() {
+    try {
+        env = Environment::createEnvironment(Environment::DEFAULT);
+        conn = env->createConnection("", "", tnsAlias); // Không cần user/password
+        OpenSync::Logger::info("✅ Connected to Oracle successfully using wallet!");
+        return true;
+    } catch (SQLException& e) {
+        OpenSync::Logger::error("❌ Oracle connection failed: " + std::string(e.getMessage()));
+        return false;
+    }
+}*/
 
 bool OracleConnector::connect() {
     try {
         env = Environment::createEnvironment(Environment::DEFAULT);
         conn = env->createConnection(user, password, "//" + host + ":" + std::to_string(port) + "/" + service);
-	OpenSync::Logger::info("✅ Connected to Oracle successfully!");
+	Logger::info("✅ Connected to Oracle successfully!");
         return true;
     } catch (SQLException& e) {
-	OpenSync::Logger::error("❌ Oracle connection failed: " + std::string(e.getMessage()));
+	Logger::error("❌ Oracle connection failed: " + std::string(e.getMessage()));
         return false;
     }
 }
@@ -41,7 +66,7 @@ void OracleConnector::disconnect() {
         Environment::terminateEnvironment(env);
         conn = nullptr;
         env = nullptr;
-	OpenSync::Logger::info("🔌 Disconnected from Oracle.");
+	Logger::info("🔌 Disconnected from Oracle.");
     }
 }
 
@@ -50,16 +75,16 @@ bool OracleConnector::isConnected() {
 }
 
 bool OracleConnector::reconnect() {
-    OpenSync::Logger::warn("🔄 Connection lost. Attempting to reconnect...");
+    Logger::warn("🔄 Connection lost. Attempting to reconnect...");
 
     disconnect();  // 🛑 Đóng kết nối cũ trước khi tạo kết nối mới
 
     if (connect()) {
-	OpenSync::Logger::info("✅ Reconnected to Oracle successfully!");
+	Logger::info("✅ Reconnected to Oracle successfully!");
         return true;
     }
 
-    OpenSync::Logger::error("❌ Reconnection failed.");
+    Logger::error("❌ Reconnection failed.");
     return false;
 }
 
@@ -73,132 +98,10 @@ bool OracleConnector::executeQuery(const std::string& sql) {
 	conn->terminateStatement(stmt);
         return true;
     } catch (SQLException& e) {
-	OpenSync::Logger::error("❌ Oracle query failed: " + std::string(e.getMessage()));
+	Logger::error("❌ Oracle query failed: " + std::string(e.getMessage()));
         return false;
     }
 }
-
-/*bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch) {
-    if (!isConnected()) return false;
-
-    Statement* stmt = nullptr;
-
-    try {
-        // 🛠️ Tạo statement (batch chạy nhanh hơn)
-        stmt = conn->createStatement();
-	bool success = true;
-        for (const auto& sql : sqlBatch) {
-	    try {
-        	stmt->executeUpdate(sql);  // ✅ Thực thi từng câu SQL
-   	     } catch (SQLException& e) {
-        	std::string errMsg = e.getMessage();
-        	if (errMsg.find("ORA-00001") != std::string::npos) {
-            	   LOG_WARNING("⚠️ ORA-00001: Duplicate PK detected.");
-                   LOG_WARNING("SQL: " + sql);
-        	} else {
-                   LOG_ERROR("❌ SQL execution failed: " + errMsg);
-                   LOG_ERROR("Query: " + sql);
-        	}
-
-        	success = false;
-    	     }
-        }
-
-	if (!success) {
-    	   conn->rollback();
-           conn->terminateStatement(stmt);
-           LOG_WARNING("⚠️ Batch failed. Rolled back.");
-           return false;
-	}
-
-        conn->commit();  // ✅ Chỉ commit khi chạy xong tất cả lệnh
-        conn->terminateStatement(stmt);  // 🛠️ Giải phóng statement
-        LOG_INFO("✅ Batch executed successfully with " + std::to_string(sqlBatch.size()) + " queries.");
-        return true;
-
-    } catch (SQLException& e) {
-        LOG_ERROR("❌ Batch execution failed: " + std::string(e.getMessage()));
-        conn->rollback();  // 🛑 Rollback toàn bộ nếu có lỗi
-
-        if (stmt) conn->terminateStatement(stmt);  // 🛠️ Đảm bảo giải phóng statement nếu có lỗi
-        return false;
-    }
-}*/
-
-/*bool OracleConnector::executeStatementSQL(const std::string& sql) {
-    if (!conn || !isConnected()) return false;
-
-    try {
-        Statement* stmt = conn->createStatement(sql);
-        stmt->executeUpdate();
-        conn->commit();
-        conn->terminateStatement(stmt);
-        return true;
-    } catch (const SQLException& ex) {
-        if (ex.getErrorCode() == 1) {  // ORA-00001
-            LOG_WARNING("⚠️ ORA-00001 (Duplicate PK) — Ignored.");
-            return true; // ✅ Bỏ qua lỗi PK
-        }
-        LOG_ERROR("❌ Oracle executeStatementSQL failed: " + std::string(ex.getMessage()));
-        return false;
-    }
-}*/
-
-/*bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch) {
-    if (!isConnected()) return false;
-
-    Statement* stmt = nullptr;
-
-    try {
-        stmt = conn->createStatement();
-        int successCount = 0;
-	int skippedCount = 0;
-
-        for (const auto& sql : sqlBatch) {
-            try {
-                stmt->executeUpdate(sql);
-                successCount++;
-            } catch (SQLException& e) {
-                std::string errMsg = e.getMessage();
-                if (errMsg.find("ORA-00001") != std::string::npos) {
-		    OpenSync::Logger::warn("⚠️ ORA-00001: Duplicate PK detected. Skipping: ");
-                    //LOG_WARNING("SQL: " + sql);
-                    // continue mà không rollback
-		    // 🔹 Extract table name from SQL (tạm thời đơn giản)
-                    std::string tableKey = SQLUtils::extractTableFromInsert(sql);
-                    MetricsExporter::getInstance().incrementCounter("oracle_duplicate_pk_skipped", {{"table", tableKey}});
-
-                    skippedCount++;
-                    continue; // ✅ Bỏ qua câu lỗi, không đánh fail toàn batch
-
-                } else {
-		    OpenSync::Logger::error("❌ SQL execution failed: " + errMsg);
-                    //LOG_ERROR("Query: " + sql);
-                    conn->terminateStatement(stmt);
-                    conn->rollback();  // Lỗi nghiêm trọng -> rollback toàn bộ
-                    return false;
-                }
-            }
-        }
-
-        conn->commit();  // ✅ Commit tất cả câu thành công
-        conn->terminateStatement(stmt);
-
-        if (successCount > 0) {
-            //OpenSync::Logger::info("✅ Batch executed successfully with " + std::to_string(successCount) + " queries.");
-            return true;
-        } else {
-	    OpenSync::Logger::warn("⚠️ All queries skipped due to duplicates.");
-            return true;  // ✅ Trả về true để không retry lại batch này
-        }
-
-    } catch (SQLException& e) {
-	OpenSync::Logger::error("❌ Batch execution failed: " + std::string(e.getMessage()));
-        conn->rollback();
-        if (stmt) conn->terminateStatement(stmt);
-        return false;
-    }
-}*/
 
 bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch) {
     if (!isConnected()) return false;
@@ -222,14 +125,14 @@ bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch
                 std::string tableKey = SQLUtils::extractTableFromInsert(sql);
 
                 if (result == DBExecResult::DUPLICATE_PK) {
-                    OpenSync::Logger::warn("⚠️ ORA-00001: Duplicate PK. Skipping row.");
+                    Logger::warn("⚠️ ORA-00001: Duplicate PK. Skipping row.");
                     MetricsExporter::getInstance().incrementCounter("oracle_duplicate_pk_skipped", {
                         {"table", tableKey}
                     });
                     skippedCount++;
                     continue;
                 } else if (result == DBExecResult::INVALID_DATA) {
-                    OpenSync::Logger::warn("⚠️ ORA-01839 or similar: Invalid date/data. Skipping row.");
+                    Logger::warn("⚠️ ORA-01839 or similar: Invalid date/data. Skipping row.");
                     MetricsExporter::getInstance().incrementCounter("oracle_invalid_data_skipped", {
                         {"table", tableKey},
                         {"error", DBExceptionHelper::toString(result)}
@@ -237,7 +140,7 @@ bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch
                     skippedCount++;
                     continue;
                 } else {
-                    OpenSync::Logger::error("❌ SQL execution failed: " + errMsg);
+                    Logger::error("❌ SQL execution failed: " + errMsg);
                     MetricsExporter::getInstance().incrementCounter("oracle_batch_failed", {
                         {"error", DBExceptionHelper::toString(result)}
                     });
@@ -252,79 +155,20 @@ bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch
         conn->terminateStatement(stmt);
 
         if (successCount > 0) {
-            //OpenSync::Logger::info("✅ Batch executed with " + std::to_string(successCount) + " successes, " + std::to_string(skippedCount) + " skipped.");
+            //Logger::info("✅ Batch executed with " + std::to_string(successCount) + " successes, " + std::to_string(skippedCount) + " skipped.");
             return true;
         } else {
-            OpenSync::Logger::warn("⚠️ All rows skipped. Nothing committed.");
+            Logger::warn("⚠️ All rows skipped. Nothing committed.");
             return true;  // ✅ Không lỗi, nhưng toàn bộ bị skip
         }
 
     } catch (SQLException& e) {
-        OpenSync::Logger::error("❌ Batch execution failed: " + std::string(e.getMessage()));
+        Logger::error("❌ Batch execution failed: " + std::string(e.getMessage()));
         conn->rollback();
         if (stmt) conn->terminateStatement(stmt);
         return false;
     }
 }
-
-
-/*bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch) {
-    if (!isConnected()) return false;
-
-    Statement* stmt = nullptr;
-
-    try {
-        stmt = conn->createStatement();
-        int successCount = 0;
-        int skippedCount = 0;
-
-        for (const auto& sql : sqlBatch) {
-            try {
-                stmt->executeUpdate(sql);
-                successCount++;
-            } catch (SQLException& e) {
-                int errorCode = e.getErrorCode();
-                std::string errMsg = e.getMessage();
-                DBExecResult result = DBExceptionHelper::classifyOracleError(errorCode, errMsg);
-                std::string tableKey = SQLUtils::extractTableFromInsert(sql);
-
-                MetricsExporter::getInstance().incrementCounter("db_error_total", {
-                    {"error_code", std::to_string(errorCode)},
-                    {"category", DBExceptionHelper::toString(result)},
-                    {"table", tableKey}
-                });
-
-                if (result == DBExecResult::DUPLICATE_PK) {
-                    OpenSync::Logger::warn("⚠️ ORA-00001: Duplicate PK. Skipping.");
-                    MetricsExporter::getInstance().incrementCounter("oracle_duplicate_pk_skipped", {{"table", tableKey}});
-                    skippedCount++;
-                    continue; // Skip this query, do not fail batch
-                } else {
-                    OpenSync::Logger::error("❌ SQL execution failed [" + std::to_string(errorCode) + "]: " + errMsg);
-                    conn->terminateStatement(stmt);
-                    conn->rollback();
-                    return false;
-                }
-            }
-        }
-
-        conn->commit();
-        conn->terminateStatement(stmt);
-
-        if (successCount > 0) {
-            return true;
-        } else {
-            OpenSync::Logger::warn("⚠️ All queries skipped due to duplicates.");
-            return true;
-        }
-
-    } catch (SQLException& e) {
-        OpenSync::Logger::error("❌ Batch execution failed: " + std::string(e.getMessage()));
-        if (conn) conn->rollback();
-        if (stmt) conn->terminateStatement(stmt);
-        return false;
-    }
-}*/
 
 oracle::occi::Connection* OracleConnector::getConnection() const {
     return conn;
@@ -339,7 +183,7 @@ std::map<std::string, OracleColumnInfo> OracleConnector::getFullColumnInfo(const
         owner = fullTableName.substr(0, pos);
         table = fullTableName.substr(pos + 1);
     } else {
-	OpenSync::Logger::error("❌ Invalid table name format (expect OWNER.TABLE): " + fullTableName);
+	Logger::error("❌ Invalid table name format (expect OWNER.TABLE): " + fullTableName);
         return result;
     }
 
@@ -368,7 +212,7 @@ std::map<std::string, OracleColumnInfo> OracleConnector::getFullColumnInfo(const
         result[colName] = info;
 
         // 🔍 Log kiểu dữ liệu đầy đủ
-        //OpenSync::Logger::info("   ↪️ " + colName + " : " + info.getFullTypeString());
+        //Logger::info("   ↪️ " + colName + " : " + info.getFullTypeString());
     }
 
     stmt->closeResultSet(rs);
@@ -392,91 +236,11 @@ void OracleConnector::logStatementMemoryUsage() {
         while (rs->next()) {
             std::string name = rs->getString(1);
             int64_t value = static_cast<int64_t>(rs->getInt(2));
-	    OpenSync::Logger::debug("[OracleMem] " + name + ": " + std::to_string(value) + " bytes");
+	    Logger::debug("[OracleMem] " + name + ": " + std::to_string(value) + " bytes");
         }
         stmt->closeResultSet(rs);
         conn->terminateStatement(stmt.release());
     } catch (SQLException& e) {
-	    OpenSync::Logger::error("Oracle mem log error: " + std::string(e.getMessage()));
+	    Logger::error("Oracle mem log error: " + std::string(e.getMessage()));
     }
 }
-
-/*bool OracleConnector::executeStatementSQL(const std::string& sql) {
-    if (!conn || !isConnected()) return false;
-
-    try {
-        Statement* stmt = conn->createStatement(sql);
-        stmt->executeUpdate();
-        conn->commit();
-        conn->terminateStatement(stmt);
-        return true;
-
-    } catch (const SQLException& e) {
-        int errCode = e.getErrorCode();
-        std::string msg = e.getMessage();
-        DBExecResult type = DBExceptionHelper::classifyOracleError(errCode, msg);
-
-        OpenSync::Logger::error("❌ Oracle executeStatementSQL failed [ORA-" + std::to_string(errCode) + "]: " +
-                      DBExceptionHelper::toString(type) + " — " + msg);
-
-        MetricsExporter::getInstance().incrementCounter("db_error_total", {
-            {"db", "oracle"},
-            {"error_code", "ORA-" + std::to_string(errCode)}
-        });
-
-        // Xử lý đặc biệt nếu là lỗi Duplicate PK
-        if (type == DBExecResult::DUPLICATE_PK) {
-            OpenSync::Logger::warn("⚠️ ORA-00001 (Duplicate PK) — Ignored.");
-            return true;
-        }
-
-        return false;
-    }
-}*/
-
-/*bool OracleConnector::executeStatementSQL(const std::string& sql) {
-    if (!isConnected()) return false;
-
-    Statement* stmt = nullptr;
-
-    try {
-        stmt = conn->createStatement(sql);
-        stmt->executeUpdate();
-        conn->commit();
-        conn->terminateStatement(stmt);
-        return true;
-
-    } catch (const SQLException& ex) {
-        std::string errMsg = ex.getMessage();
-        int errorCode = ex.getErrorCode();
-
-        // Phân loại lỗi thông qua helper
-        std::string category = DBExceptionHelper::classifyOracleError(errorCode);
-        std::string errorName = DBExceptionHelper::getOracleErrorName(errorCode);
-
-        OpenSync::Logger::error("❌ executeStatementSQL failed: [" + errorName + "] " + errMsg);
-
-        // Đếm lỗi theo mã lỗi và bảng (nếu extract được)
-        std::string tableKey = SQLUtils::extractTableFromInsert(sql);
-        MetricsExporter::getInstance().incrementCounter("db_error_total", {
-            {"db", "oracle"},
-            {"error_code", std::to_string(errorCode)},
-            {"category", category},
-            {"table", tableKey}
-        });
-
-        // ❗Fallback ví dụ (nếu cần sau này)
-        //
-        //if (errorCode == 1 // ORA-00001  /) {
-        //    OpenSync::Logger::warn("🔁 Retrying with MERGE due to Duplicate PK");
-            // TODO: sinh MERGE SQL fallback
-        //}
-        
-
-        if (stmt) conn->terminateStatement(stmt);
-        conn->rollback();
-        return false;
-    }
-}*/
-
-

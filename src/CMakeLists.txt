@@ -28,19 +28,11 @@ list(APPEND SOURCE_INCLUDE_DIRS
 	${CMAKE_CURRENT_SOURCE_DIR}/config
 	${CMAKE_CURRENT_SOURCE_DIR}/db/oracle
 	${CMAKE_CURRENT_SOURCE_DIR}/db/postgresql
-	${CMAKE_CURRENT_SOURCE_DIR}/dbconnector
-	${CMAKE_CURRENT_SOURCE_DIR}/exception
-	${CMAKE_CURRENT_SOURCE_DIR}/external
 	${CMAKE_CURRENT_SOURCE_DIR}/kafka
 	${CMAKE_CURRENT_SOURCE_DIR}/logger
 	${CMAKE_CURRENT_SOURCE_DIR}/metrics
-	${CMAKE_CURRENT_SOURCE_DIR}/monitor
-	${CMAKE_CURRENT_SOURCE_DIR}/schema
-	${CMAKE_CURRENT_SOURCE_DIR}/sqlbuilder
 	${CMAKE_CURRENT_SOURCE_DIR}/thread
-	${CMAKE_CURRENT_SOURCE_DIR}/time
 	${CMAKE_CURRENT_SOURCE_DIR}/utils
-	${CMAKE_CURRENT_SOURCE_DIR}/WriteDataToDB
 	${CMAKE_CURRENT_SOURCE_DIR}/writer)
 include_directories(${SOURCE_INCLUDE_DIRS})
 
@@ -56,24 +48,25 @@ link_directories(${LIBRARY_DIRS})
 
 list(APPEND ListMain main.cpp )
 list(APPEND ListApp app/AppInitializer.cpp )
-list(APPEND ListCommon common/Queues.cpp )
+list(APPEND ListCommon common/Queues.cpp
+											 common/TimeUtils.cpp)
 
 list(APPEND ListConfig
 	config/ConfigLoader.cpp
 	config/FilterConfigLoader.cpp
 )
 
-list(APPEND ListOracle db/oracle/OracleConnector.cpp)
+list(APPEND ListDB db/DBConnectorFactory.cpp)
+									 db/DBException.cpp
+
+list(APPEND ListOracle db/oracle/OracleConnector.cpp
+											 db/oracle/OracleSchemaCache.cpp
+											 db/oracle//OracleSQLBuilder.cpp
 list(APPEND ListPostgreSQL
             db/postgresql/PostgreSQLConnector.cpp
-            db/postgresql/ConnectorUtils.cpp)
-list(APPEND ListDBConnector dbconnector/DBConnectorFactory.cpp)
-
-list(APPEND ListException
-	exception/DBException.cpp
-)
-
-list(APPEND ListExternal external/date.h)
+            db/postgresql/ConnectorUtils.cpp
+						db/postgresql/PostgreSQLSchemaCache.cpp
+						db/postgresql/PostgreSQLSQLBuilder.cpp)
 
 list(APPEND ListKafka
 	kafka/KafkaConsumer.cpp
@@ -86,18 +79,8 @@ list(APPEND ListLogger
 list(APPEND ListMetrics
 	metrics/MetricsServer.cpp
 	metrics/MetricsExporter.cpp
-	metrics/SystemMetricsUtils.cpp)
-
-list(APPEND ListMonitor
-	monitor/MonitorManager.cpp)
-
-list(APPEND ListSchema
-	schema/OracleSchemaCache.cpp
-	schema/PostgreSQLSchemaCache.cpp)
-
-list(APPEND ListSQLBuilder
-	sqlbuilder/OracleSQLBuilder.cpp
-	sqlbuilder/PostgreSQLSQLBuilder.cpp)
+	metrics/SystemMetricsUtils.cpp
+	metrics/MonitorManager.cpp)
 
 list(APPEND ListThread
   thread/KafkaConsumerThread.cpp
@@ -106,38 +89,27 @@ list(APPEND ListThread
   thread/workerthread/WorkerThread.cpp
   thread/monitorthread/MonitorThread.cpp)
 
-list(APPEND ListTime time/TimeUtils.cpp)
-
 list(APPEND ListUtils
 	utils/BufferGCManager.cpp
 	utils/MemoryUtils.cpp
 	utils/SQLUtils.cpp
 )
 
-list(APPEND ListWriteDataToDB WriteDataToDB/WriteDataToDB.cpp)
-
-list(APPEND ListWriter writer/CheckpointManager.cpp)
+list(APPEND ListWriter writer/CheckpointManager.cpp
+											 writer/WriteDataToDB.cpp)
 
 # ✅ Create object libraries for each source list
 add_library(LibMain OBJECT ${ListMain})
 add_library(LibApp OBJECT ${ListApp})
-add_library(LibCommon OBJECT ${ListCommon})
 add_library(LibConfig OBJECT ${ListConfig})
 add_library(LibOracle OBJECT ${ListOracle})
 add_library(LibPostgreSQL OBJECT ${ListPostgreSQL})
-add_library(LibDBConnector OBJECT ${ListDBConnector})
-add_library(LibException OBJECT ${ListException})
-add_library(LibExternal OBJECT ${ListExternal})
+add_library(LibDB OBJECT ${ListDB})
 add_library(LibKafka OBJECT ${ListKafka})
 add_library(LibLogger OBJECT ${ListLogger})
 add_library(LibMetrics OBJECT ${ListMetrics})
-add_library(LibMonitor OBJECT ${ListMonitor})
-add_library(LibSchema OBJECT ${ListSchema})
-add_library(LibSQLBuilder OBJECT ${ListSQLBuilder})
 add_library(LibThread OBJECT ${ListThread})
-add_library(LibTime OBJECT ${ListTime})
 add_library(LibUtils OBJECT ${ListUtils})
-add_library(LibWriteDataToDB OBJECT ${ListWriteDataToDB})
 add_library(LibWriter OBJECT ${ListWriter})
 
 # ✅ Output to bin/
@@ -151,21 +123,14 @@ target_link_libraries(OpenSync
     LibApp
     LibCommon
     LibConfig
+		LibDB
     LibOracle
     LibPostgreSQL
-    LibDBConnector
-    LibException
-    LibExternal
     LibKafka
     LibLogger
     LibMetrics
-    LibMonitor
-    LibSchema
-    LibSQLBuilder
     LibThread
-    LibTime
     LibUtils
-    LibWriteDataToDB
     LibWriter)
 
 #add_executable(OpenSync ${ALL_SOURCES})
