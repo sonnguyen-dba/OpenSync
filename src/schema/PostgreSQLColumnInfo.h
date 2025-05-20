@@ -10,6 +10,7 @@ struct PostgreSQLColumnInfo {
     int numericPrecision = 0;
     int numericScale = 0;
     bool nullable = true;
+    bool isPrimaryKey = false;
 
     bool operator==(const PostgreSQLColumnInfo& other) const {
         return dataType == other.dataType &&

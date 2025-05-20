@@ -1,7 +1,7 @@
 #include "SystemMetricsUtils.h"
 #include "../metrics/MetricsExporter.h"
 #include "../kafka/KafkaProcessor.h"
-#include "../WriteDataToDB/WriteDataToDB.h"
+#include "../writer/WriteDataToDB.h"
 #include "../logger/Logger.h"
 #include <thread>
 #include <chrono>

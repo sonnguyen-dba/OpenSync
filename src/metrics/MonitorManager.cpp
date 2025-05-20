@@ -144,3 +144,4 @@ void MonitorManager::startMonitors(KafkaConsumer& consumer, WriteDataToDB& write
         OpenSync::Logger::info("🛑 Unified Monitor thread stopped.");
     }).detach();
 }
+

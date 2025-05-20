@@ -5,7 +5,7 @@
 #include "../../metrics/MetricsExporter.h"
 #include "../ThreadSafeQueue.h"
 #include "../../common/TableBatch.h"
-#include "../../WriteDataToDB/WriteDataToDB.h"
+#include "../../writer/WriteDataToDB.h"
 #include <thread>
 #include <chrono>
 #include <malloc.h>

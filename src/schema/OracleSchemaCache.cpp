@@ -1,10 +1,10 @@
 #include "OracleSchemaCache.h"
 #include "../db/oracle/OracleConnector.h"
-#include "../dbconnector/DBConnectorFactory.h"
+#include "../db/DBConnectorFactory.h"
 #include "../logger/Logger.h"
-#include "../config/ConfigLoader.h"
+#include "../reader/ConfigLoader.h"
 #include "../metrics/MetricsExporter.h"
-#include "../dbconnector/DBConnector.h"
+#include "../db/DBConnector.h"
 #include "FilterConfigLoader.h"
 #include <unordered_map>
 #include <unordered_set>
@@ -21,8 +21,8 @@
 void OracleSchemaCache::loadTableSchema(const std::string& fullTableName, const ConfigLoader& config) {
     size_t dotPos = fullTableName.find('.');
     if (dotPos == std::string::npos) {
-	       OpenSync::Logger::error("❌ Invalid table name format (expect OWNER.TABLE): " + fullTableName);
-         return;
+	OpenSync::Logger::error("❌ Invalid table name format (expect OWNER.TABLE): " + fullTableName);
+        return;
     }
 
     std::string owner = fullTableName.substr(0, dotPos);
@@ -39,41 +39,44 @@ void OracleSchemaCache::loadTableSchema(const std::string& fullTableName, const 
         );
 
         if (!connector->connect()) {
-	           OpenSync::Logger::error("❌ Failed to connect to Oracle while fetching schema for: " + fullTableName);
-             return;
+	    OpenSync::Logger::error("❌ Failed to connect to Oracle while fetching schema for: " + fullTableName);
+            return;
         }
 
         //OpenSync::Logger::info("✅ Connected to Oracle successfully (for schema fetch)");
         auto columnInfo = connector->getFullColumnInfo(fullTableName);
-	      OpenSync::Logger::info("👀 Fetched " + std::to_string(columnInfo.size()) + " columns from Oracle for " + fullTableName);
+
+	OpenSync::Logger::info("👀 Fetched " + std::to_string(columnInfo.size()) + " columns from Oracle for " + fullTableName);
 
         {
-      	    OpenSync::Logger::info("🔧 Calling mergeSchema() for table: " + fullTableName);
+	    OpenSync::Logger::info("🔧 Calling mergeSchema() for table: " + fullTableName);
+
             //schemaCache[fullTableName] = columnInfo; //moi thay the bang merge
-      	    mergeSchema(fullTableName, columnInfo);
-      	    OpenSync::Logger::info("✅ Schema inserted into cache for: " + fullTableName);
+	    mergeSchema(fullTableName, columnInfo);
+
+	    OpenSync::Logger::info("✅ Schema inserted into cache for: " + fullTableName);
         }
 
         std::stringstream ss;
         ss << "📦 Cached Oracle schema for " << fullTableName << ", cols: " << columnInfo.size();
-	      OpenSync::Logger::info(ss.str());
+	OpenSync::Logger::info(ss.str());
 
         connector->disconnect();
         //OpenSync::Logger::info("🔌 Disconnected from Oracle.");
     } catch (const std::exception& ex) {
-	      OpenSync::Logger::error("❌ Exception while loading Oracle schema for " + fullTableName + ": " + ex.what());
+	OpenSync::Logger::error("❌ Exception while loading Oracle schema for " + fullTableName + ": " + ex.what());
     }
 }
 
 void OracleSchemaCache::loadSchemaIfNeeded(const std::string& fullTableName, DBConnector& connector) {
     auto* oracle = dynamic_cast<OracleConnector*>(&connector);
     if (!oracle) {
-	       OpenSync::Logger::error("❌ Invalid DBConnector type (not Oracle) for: " + fullTableName);
-         return;
+	OpenSync::Logger::error("❌ Invalid DBConnector type (not Oracle) for: " + fullTableName);
+        return;
     }
     if (!oracle->isConnected()) {
-	       OpenSync::Logger::error("❌ OracleConnector is not connected while preloading: " + fullTableName);
-         return;
+	OpenSync::Logger::error("❌ OracleConnector is not connected while preloading: " + fullTableName);
+        return;
     }
 
     OpenSync::Logger::info("🔄 Loading schema for table: " + fullTableName);
@@ -84,7 +87,6 @@ void OracleSchemaCache::loadSchemaIfNeeded(const std::string& fullTableName, DBC
     OpenSync::Logger::info("✅ Schema inserted into cache for: " + fullTableName);
     lastAccessTime[fullTableName] = std::chrono::steady_clock::now();
 }
-
 void OracleSchemaCache::removeSchema(const std::string& fullTable) {
         std::lock_guard<std::mutex> lock(cacheMutex);
         auto it = schemaCache.find(fullTable);
@@ -132,16 +134,16 @@ void OracleSchemaCache::mergeSchema(
     int driftCount = 0;
 
     if (existingSchema.empty()) {
-          // ⚠️ Đây là lần đầu tiên nạp schema → lưu thẳng
-          existingSchema = newSchema;
-	        //for (const auto& [colName, colInfo] : newSchema) {
+        // ⚠️ Đây là lần đầu tiên nạp schema → lưu thẳng
+        existingSchema = newSchema;
+	//for (const auto& [colName, colInfo] : newSchema) {
             //std::stringstream ss;
             //ss << "   ↪️ " << colName << " : " << colInfo.getFullTypeString()
             //   << (colInfo.nullable ? " NULLABLE" : " NOT NULL");
             //OpenSync::Logger::info(ss.str());
-         //}
-	       OpenSync::Logger::info("🆕 [Schema] Inserted new schema for " + fullTableName + ", cols: " + std::to_string(newSchema.size()));
-         return;
+        //}
+	OpenSync::Logger::info("🆕 [Schema] Inserted new schema for " + fullTableName + ", cols: " + std::to_string(newSchema.size()));
+        return;
     }
 
     // Tiếp tục xử lý merge như cũ nếu schema đã có
@@ -188,6 +190,63 @@ void OracleSchemaCache::mergeSchema(
 
     OpenSync::Logger::info("✅ [Schema] Merged schema for " + fullTableName + ", total cols: " + std::to_string(existingSchema.size()));
 }
+
+/*void OracleSchemaCache::startAutoRefreshThread(const ConfigLoader& config, int ttlSeconds) {
+    static std::atomic<bool> threadStarted = false;
+
+    if (threadStarted.exchange(true)) {
+	OpenSync::Logger::info("🟡 Schema auto-refresh thread already started. Skipping...");
+        return;
+    }
+
+    stopRefresh = false;  // ✅ reset flag nếu restart
+
+    OpenSync::Logger::info("⏱️ Starting schema auto-refresh thread (interval: " + std::to_string(ttlSeconds) + "s)");
+
+    refreshThread = std::thread([this, &config, ttlSeconds]() {
+        try {
+            while (!stopRefresh) {
+                std::this_thread::sleep_for(std::chrono::seconds(ttlSeconds));
+		OpenSync::Logger::info("🔄 Auto-refreshing Oracle schema cache...");
+                refreshAllSchemas(config);
+            }
+        } catch (const std::exception& ex) {
+            //OpenSync::Logger::info("❌ Exception in schema auto-refresh thread: " + std::string(ex.what()));
+	OpenSync::Logger::error("❌ Exception in schema auto-refresh thread: " + std::string(ex.what()));
+        } catch (...) {
+	    OpenSync::Logger::fatal("💥 Unknown exception in schema auto-refresh thread");
+        }
+    });
+
+    refreshThread.detach();
+}*/
+
+/*void OracleSchemaCache::startAutoRefreshThread(const ConfigLoader& config, int ttlSeconds) {
+    static std::atomic<bool> threadStarted = false;
+
+    if (threadStarted.exchange(true)) {
+        OpenSync::Logger::info("🟡 Schema auto-refresh thread already started. Skipping...");
+        return;
+    }
+
+    OpenSync::Logger::info("⏱️ Starting schema auto-refresh thread (interval: " + std::to_string(ttlSeconds) + "s)");
+
+    stopRefresh = false;
+    refreshThread = std::thread([this, &config, ttlSeconds]() {
+        try {
+            while (!stopRefresh) {
+                std::this_thread::sleep_for(std::chrono::seconds(ttlSeconds));
+                if (stopRefresh) break;
+                OpenSync::Logger::info("🔄 Auto-refreshing Oracle schema cache...");
+                refreshAllSchemas(config);
+            }
+        } catch (const std::exception& ex) {
+            OpenSync::Logger::error("❌ Exception in schema auto-refresh thread: " + std::string(ex.what()));
+        } catch (...) {
+            OpenSync::Logger::fatal("💥 Unknown exception in schema auto-refresh thread");
+        }
+    });
+}*/
 
 void OracleSchemaCache::startAutoRefreshThread(const ConfigLoader& config, int ttlSeconds) {
     static std::atomic<bool> threadStarted = false;
@@ -287,21 +346,22 @@ void OracleSchemaCache::preloadAllSchemas(const ConfigLoader& config) {
     try {
         auto connector = OracleSchemaCache::createTempOracleConnector(config);
         if (!connector || !connector->connect()) {
-	           OpenSync::Logger::fatal("❌ Failed to connect to Oracle for schema preload");
-             return;
+	    OpenSync::Logger::fatal("❌ Failed to connect to Oracle for schema preload");
+            return;
         }
 
-         //OpenSync::Logger::info("✅ Connected to Oracle successfully for schema preload");
-         const auto& filters = FilterConfigLoader::getInstance().getAllFilters();
-	       OpenSync::Logger::info("📦 Total filters to preload: " + std::to_string(filters.size()));
+        //OpenSync::Logger::info("✅ Connected to Oracle successfully for schema preload");
+
+        const auto& filters = FilterConfigLoader::getInstance().getAllFilters();
+	OpenSync::Logger::info("📦 Total filters to preload: " + std::to_string(filters.size()));
 
         for (const auto& f : filters) {
             std::string fullTableName = f.owner + "." + f.table;
-	          OpenSync::Logger::info("🔄 Preloading schema for table: " + fullTableName);
+	    OpenSync::Logger::info("🔄 Preloading schema for table: " + fullTableName);
             try {
                 OracleSchemaCache::getInstance().loadSchemaIfNeeded(fullTableName, *connector);
             } catch (const std::exception& ex) {
-		            OpenSync::Logger::error("❌ Exception while loading schema for " + fullTableName + ": " + ex.what());
+		OpenSync::Logger::error("❌ Exception while loading schema for " + fullTableName + ": " + ex.what());
             }
         }
 
@@ -309,9 +369,9 @@ void OracleSchemaCache::preloadAllSchemas(const ConfigLoader& config) {
         //OpenSync::Logger::info("🔌 Disconnected Oracle after schema preload");
 
     } catch (const std::exception& ex) {
-	     OpenSync::Logger::fatal("❌ Exception during preloadAllSchemas(): " + std::string(ex.what()));
+	OpenSync::Logger::fatal("❌ Exception during preloadAllSchemas(): " + std::string(ex.what()));
     } catch (...) {
-	     OpenSync::Logger::fatal("❌ Unknown exception during preloadAllSchemas()");
+	OpenSync::Logger::fatal("❌ Unknown exception during preloadAllSchemas()");
     }
 }
 
@@ -355,7 +415,7 @@ void OracleSchemaCache::shrinkIfInactive(int ttlSeconds) {
     }
 
     if (removed > 0) {
-	     OpenSync::Logger::info("✅ Removed " + std::to_string(removed) + " stale schemas from cache.");
+	OpenSync::Logger::info("✅ Removed " + std::to_string(removed) + " stale schemas from cache.");
     }*/
 }
 

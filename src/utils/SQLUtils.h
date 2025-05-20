@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <rapidjson/document.h>
 #include "../schema/OracleColumnInfo.h"
 #include "../schema/PostgreSQLColumnInfo.h"
@@ -9,8 +10,9 @@ class SQLUtils {
 public:
     static std::string convertToSQLValue(const rapidjson::Value& val);
     static std::string convertToSQLValue(const rapidjson::Value& val, const std::string& colName);
+
     static bool isPostgreSQLTimestampOutOfRange(const std::string& timestampStr);
-    
+
     static std::string convertToSQLValueWithType(
         const rapidjson::Value& val,
         const std::string& dbType,
@@ -66,4 +68,10 @@ public:
     );
 
     static std::string toLower(const std::string& input);
+    static std::string toUpper(const std::string& input);
+
+    static std::string buildPostgreSQLUpsertSQL(const std::string& fullTable, const rapidjson::Value& jsonObj);
+    static std::string join(const std::vector<std::string>& vec, const std::string& delimiter);
+
+
 };

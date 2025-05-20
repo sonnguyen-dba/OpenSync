@@ -3,6 +3,7 @@
 #include "fstream"
 #include "mutex"
 
+namespace OpenSync {
 enum LogLevel {
     DEBUG = 0,
     INFO = 1,
@@ -10,38 +11,38 @@ enum LogLevel {
     ERROR = 3,
     FATAL = 4
 };
-namespace OpenSync {
-  class Logger {
-    public:
-        static Logger& getInstance();
 
-        static void setLogLevel(LogLevel level);
-        static LogLevel getLogLevel();
-        static bool isDebugEnabled();
+class Logger {
+public:
+    static Logger& getInstance();
 
-        static std::string getCurrentTimestamp();
+    static void setLogLevel(LogLevel level);
+    static LogLevel getLogLevel();
+    static bool isDebugEnabled();
 
-        static void debug(const std::string& message);
-        static void info(const std::string& message);
-        static void warn(const std::string& message);
-        static void error(const std::string& message);
-        static void fatal(const std::string& message);
+    static std::string getCurrentTimestamp();
 
-        void setDebugOrAllFile(const std::string& path);
-        void setWarnErrorFatalFile(const std::string& path);
+    static void debug(const std::string& message);
+    static void info(const std::string& message);
+    static void warn(const std::string& message);
+    static void error(const std::string& message);
+    static void fatal(const std::string& message);
 
-    private:
-        Logger() = default;
-        ~Logger();
+    void setDebugOrAllFile(const std::string& path);
+    void setWarnErrorFatalFile(const std::string& path);
 
-        void log(LogLevel level, const std::string& message);
-        std::string formatLog(LogLevel level, const std::string& message);
-        std::string logLevelToString(LogLevel level);
+private:
+    Logger() = default;
+    ~Logger();
 
-        static LogLevel currentLevel;
-        static std::mutex logMutex;
+    void log(LogLevel level, const std::string& message);
+    std::string formatLog(LogLevel level, const std::string& message);
+    std::string logLevelToString(LogLevel level);
 
-        std::ofstream debugOrAllFile;
-        std::ofstream warnOrFatalFile;
-  };
+    static LogLevel currentLevel;
+    static std::mutex logMutex;
+
+    std::ofstream debugOrAllFile;
+    std::ofstream warnOrFatalFile;
+};
 }

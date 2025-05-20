@@ -34,6 +34,10 @@ public:
     void printFilteredTables(); 
     void commitOffset(rd_kafka_message_t* message);
 
+    //bool isMessageProcessed(const std::string& message);
+    //void markMessageProcessed(const std::string& message);
+    //std::string computeMessageHash(const std::string& message);
+
     static void rebalanceCallback(rd_kafka_t* rk,
                               rd_kafka_resp_err_t err,
                               rd_kafka_topic_partition_list_t* partitions,

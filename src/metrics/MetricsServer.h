@@ -1,7 +1,7 @@
 #ifndef METRICS_SERVER_H
 #define METRICS_SERVER_H
 
-#include "../external/httplib.h"
+#include "../common/httplib.h"
 #include <thread>
 
 class MetricsServer {

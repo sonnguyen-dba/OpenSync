@@ -1,109 +1,77 @@
 #include "WorkerThread.h"
-#include <unordered_map>
-#include <chrono>
-#include <sstream>
-#include <thread>
-#include <atomic>
-#include "Queues.h"
-#include "../../metrics/MetricsExporter.h"
-#include "BufferGCManager.h"
+#include "../../kafka/KafkaProcessor.h"
+#include "../../common/Queues.h"
+#include "../../common/TableBatch.h"
 #include "../../logger/Logger.h"
+#include "../../common/TimeCur.h"
+#include <chrono>
+#include <thread>
 
 void workerThread(KafkaProcessor& processor, int batchFlushIntervalMs, std::atomic<bool>& shouldShutdown) {
-    constexpr int shrinkIdleThresholdMs = 1000; // 🧠 Shrink lag nếu idle > 1s
-    std::unordered_map<std::string, TableBatch> batches;
-    std::unordered_map<std::string, std::chrono::steady_clock::time_point> lastMessageTimes;
+    OpenSync::Logger::info("🧵 Worker thread started.");
 
-    auto lastShrinkCheck = std::chrono::steady_clock::now();
+    std::unordered_map<std::string, TableBatch> tableBuffers;
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> lastFlushTime;
 
     while (!shouldShutdown) {
         std::tuple<std::string, int, int64_t, int64_t, rd_kafka_message_t*> item;
-        bool hasData = kafkaMessageQueue.try_pop(item);
+        bool hasMessage = kafkaMessageQueue.try_pop(item, std::chrono::milliseconds(100));
+
         auto now = std::chrono::steady_clock::now();
 
-        if (!hasData) {
-            auto idleDuration = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastShrinkCheck).count();
-            if (idleDuration >= shrinkIdleThresholdMs) {
-                processor.shrinkLagBuffers(30);
-                lastShrinkCheck = now;
-            }
+        if (hasMessage) {
+            auto& [message, partition, offset, timestamp, rawMsg] = item;
 
-            // Check timeout flush
-            for (auto& [tableKey, batch] : batches) {
-                if (!batch.sqls.empty()) {
-                    auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastMessageTimes[tableKey]).count();
-                    if (elapsedMs >= batchFlushIntervalMs) {
-                        OpenSync::Logger::debug("⏱️ Flushing timeout batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
-                        dbWriteQueue.push({tableKey, std::move(batch)});
-                        batches[tableKey] = TableBatch{};
-                        lastMessageTimes[tableKey] = now;
-                    }
+            // Parse Kafka message
+
+	    OpenSync::Logger::debug("📩 Kafka message received at: " + std::to_string(getCurrentTimeMs()));
+            auto batchMap = processor.processMessageByTable(message, partition, offset, timestamp);
+	    OpenSync::Logger::debug("✅ SQLBuilder called at: " + std::to_string(getCurrentTimeMs()));
+
+
+            for (auto& [tableKey, sqls] : batchMap) {
+                auto& batch = tableBuffers[tableKey];
+                batch.sqls.insert(batch.sqls.end(), sqls.begin(), sqls.end());
+                batch.messages.push_back(rawMsg);
+                lastFlushTime[tableKey] = now;
+
+                // Flush nếu batch đủ lớn
+                if (batch.sqls.size() >= batchSize) {
+                    dbWriteQueue.push({tableKey, std::move(batch)});
+                    tableBuffers.erase(tableKey);
+                    lastFlushTime.erase(tableKey);
                 }
             }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            continue;
         }
 
-        // Parse message
-        auto& [message, partition, offset, timestamp, rawMsg] = item;
-        auto batchMap = processor.processMessageByTable(message, partition, offset, timestamp);
-        now = std::chrono::steady_clock::now(); // Cập nhật lại thời gian
+        // Kiểm tra timeout flush buffer
+        for (auto it = lastFlushTime.begin(); it != lastFlushTime.end();) {
+            const auto& tableKey = it->first;
+            auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - it->second).count();
 
-        for (auto& [tableKey, sqls] : batchMap) {
-            auto& batch = batches[tableKey];
-            for (auto& sql : sqls) {
-                batch.sqls.push_back(std::move(sql));
-                batch.messages.push_back(rawMsg);
-            }
-            lastMessageTimes[tableKey] = now;
-
-            if (batch.sqls.size() >= batchSize) {
-                OpenSync::Logger::debug("📦 Flushing full batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
-                dbWriteQueue.push({tableKey, std::move(batch)});
-                batches[tableKey] = TableBatch{};
-                lastMessageTimes[tableKey] = now;
+            if (elapsedMs >= batchFlushIntervalMs) {
+                if (!tableBuffers[tableKey].sqls.empty()) {
+                    OpenSync::Logger::debug("⏳ Timeout flush for table: " + tableKey + ", batch size: " + std::to_string(tableBuffers[tableKey].sqls.size()));
+                    dbWriteQueue.push({tableKey, std::move(tableBuffers[tableKey])});
+                }
+                tableBuffers.erase(tableKey);
+                it = lastFlushTime.erase(it);
+            } else {
+                ++it;
             }
         }
     }
 
-    // Shutdown: flush remaining
-    Logger::info("⚙️ Worker shutting down. Flushing remaining batches...");
-    for (auto& [tableKey, batch] : batches) {
+    // 🔥 Khi shutdown, flush toàn bộ còn lại
+    OpenSync::Logger::info("🛑 Flushing remaining buffers before shutdown...");
+    for (auto& [tableKey, batch] : tableBuffers) {
         if (!batch.sqls.empty()) {
-            OpenSync::Logger::info("🧹 Final batch flush: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
             dbWriteQueue.push({tableKey, std::move(batch)});
         }
     }
+    tableBuffers.clear();
+    lastFlushTime.clear();
 
-    // Flush Kafka messages left
-    std::tuple<std::string, int, int64_t, int64_t, rd_kafka_message_t*> itemLeft;
-    while (kafkaMessageQueue.try_pop(itemLeft)) {
-        auto& [message, partition, offset, timestamp, rawMsg] = itemLeft;
-        //OpenSync::Logger::info("Processing message, size: " + std::to_string(message.size() / 1024) + " KB");
-        auto batchMap = processor.processMessageByTable(message, partition, offset, timestamp);
-        //auto now = std::chrono::steady_clock::now();
-        for (auto& [tableKey, sqls] : batchMap) {
-            auto& batch = batches[tableKey];
-            for (auto& sql : sqls) {
-                batch.sqls.push_back(std::move(sql));
-                batch.messages.push_back(rawMsg);
-            }
-            if (batch.sqls.size() >= batchSize) {
-                OpenSync::Logger::info("🧹 Flushing Kafka left batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
-                dbWriteQueue.push({tableKey, std::move(batch)});
-                batches[tableKey] = TableBatch{};
-            }
-        }
-    }
-
-    // Flush final
-    for (auto& [tableKey, batch] : batches) {
-        if (!batch.sqls.empty()) {
-            OpenSync::Logger::info("🧹 Flushing Kafka left final batch: " + tableKey + ", size=" + std::to_string(batch.sqls.size()));
-            dbWriteQueue.push({tableKey, std::move(batch)});
-        }
-    }
-
-    Logger::info("✅ Worker thread stopped cleanly.");
+    OpenSync::Logger::info("🎯 Worker thread exited cleanly.");
 }
+

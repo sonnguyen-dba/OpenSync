@@ -1,0 +1,45 @@
+#include "KuduConnector.h"
+#include <iostream>
+#include <kudu/client/client.h>
+
+KuduConnector::KuduConnector(const std::string& masterServer)
+    : masterServer(masterServer), connected(false) {}
+
+KuduConnector::~KuduConnector() {
+    disconnect();
+}
+
+bool KuduConnector::connect() {
+    kudu::client::KuduClientBuilder builder;
+    builder.add_master_server_addr(masterServer);
+    kudu::Status status = builder.Build(&client);
+    connected = status.ok();
+
+    if (connected)
+        std::cout << "Connected to Kudu master at " << masterServer << std::endl;
+    else
+        std::cerr << "Failed to connect to Kudu!" << std::endl;
+
+    return connected;
+}
+
+void KuduConnector::disconnect() {
+    connected = false;
+}
+
+bool KuduConnector::isConnected() {
+    return connected;
+}
+
+bool KuduConnector::writeData(const std::vector<std::string>& jsonData) {
+    if (!isConnected()) {
+        std::cerr << "Kudu is not connected!" << std::endl;
+        return false;
+    }
+
+    // Ở đây bạn có thể viết code để ghi dữ liệu vào bảng Kudu
+    std::cout << "Writing data to Kudu..." << std::endl;
+
+    return true;
+}
+

@@ -1,13 +1,15 @@
 #include "AppInitializer.h"
-#include "../config/FilterConfigLoader.h"
+#include "../reader/FilterConfigLoader.h"
 #include "../schema/OracleSchemaCache.h"
 #include "../schema/PostgreSQLSchemaCache.h"
 #include "../logger/Logger.h"
 #include "../sqlbuilder/OracleSQLBuilder.h"
 #include "../sqlbuilder/PostgreSQLSQLBuilder.h"
-#include "../monitor/MonitorManager.h"
+#include "../metrics/MonitorManager.h"
 #include "../db/oracle/OracleConnector.h"
 #include "../db/postgresql/PostgreSQLConnector.h"
+#include "../initialload/InitialLoaderOracleToPostgreSQL.h"
+
 
 std::unique_ptr<AppComponents> AppInitializer::initialize(const std::string& configPath) {
     auto components = std::make_unique<AppComponents>();
@@ -41,13 +43,15 @@ std::unique_ptr<AppComponents> AppInitializer::initialize(const std::string& con
      }
 
     // Preload schema and auto refresh
-    int interval = components->config->getInt("schema_refresh_secs", 10);
+    int interval = components->config->getInt("schema_refresh_secs", 180);
     if (dbType == "oracle" && components->config->getBool("enable-oracle", true)) {
         OracleSchemaCache::getInstance().preloadAllSchemas(*components->config);
         OracleSchemaCache::getInstance().startAutoRefreshThread(*components->config, interval);
     } else if (dbType == "postgresql" && components->config->getBool("enable-postgresql", true)) {
         PostgreSQLSchemaCache::getInstance().preloadAllSchemas(*components->config);
-        PostgreSQLSchemaCache::getInstance().startAutoRefreshThread(*components->config, interval);
+        //PostgreSQLSchemaCache::getInstance().startAutoRefreshThread(*components->config, interval);
+        PostgreSQLSchemaCache::getInstance().autoRefreshSchemas(*components->config, interval);
+
 
       /*  std::thread([] {
             while (true) {
@@ -90,6 +94,13 @@ std::unique_ptr<AppComponents> AppInitializer::initialize(const std::string& con
     }
     components->processor->enableISODebugLog = components->config->getBool("debug_iso_log", false);
     components->processor->setActiveDbType(dbType);
+    
+    // Initial Load from Oracle to PostgreSQL
+    /*if (components->config->getBool("initial-load", false)) {
+	OpenSync::Logger::info("🚀 Running initial load from Oracle to PostgreSQL...");
+        InitialLoaderOracleToPostgreSQL loader(*components->config);
+        loader.runAllTablesIfEnabled();
+    }*/
 
     // Register SQLBuilder
     if (dbType == "oracle") {
@@ -106,6 +117,26 @@ std::unique_ptr<AppComponents> AppInitializer::initialize(const std::string& con
         components->processor->registerSQLBuilder("postgresql", std::move(sqlBuilder));
     }
 
+    /*if (components->config->getBool("initial-load", false)) {
+        OpenSync::Logger::info("🚀 Running initial load from Oracle to PostgreSQL...");
+        InitialLoaderOracleToPostgreSQL loader(*components->config);
+        loader.runAllTablesIfEnabled();
+    }*/
+
+    // ✅ Initial load Oracle → PostgreSQL (if enabled)
+    /*if (components->config->getBool("initial-load", false)) {
+	OpenSync::Logger::info("🚀 Running initial load from Oracle to PostgreSQL...");
+        auto loader = std::make_unique<InitialLoaderOracleToPostgreSQL>(*components->config);
+        loader->runAllTablesIfEnabled();
+    }*/
+    // ✅ Initial load Oracle → PostgreSQL (if enabled)
+    if (components->config->getBool("initial-load", false)) {
+    	OpenSync::Logger::info("📦 Preloading Oracle schema for initial load...");
+    	OracleSchemaCache::getInstance().preloadAllSchemas(*components->config);
+    	OpenSync::Logger::info("🚀 Running initial load from Oracle to PostgreSQL...");
+    	auto loader = std::make_unique<InitialLoaderOracleToPostgreSQL>(*components->config);
+    	loader->runAllTablesIfEnabled();
+     }
     // Kafka Consumer
     components->consumer = std::make_unique<KafkaConsumer>(
         *components->processor,

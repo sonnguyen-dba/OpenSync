@@ -1,6 +1,6 @@
 #pragma once
 #include "SQLBuilderBase.h"
-#include "../config/ConfigLoader.h"
+#include "../reader/ConfigLoader.h"
 
 class OracleSQLBuilder : public SQLBuilderBase {
 public:

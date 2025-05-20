@@ -10,7 +10,7 @@
 #include <filesystem>
 #include <rapidjson/document.h>
 #include "../common/FilterEntry.h"
-#include "../config/ConfigLoader.h"
+#include "../reader/ConfigLoader.h"
 #include "../schema/OracleColumnInfo.h"
 #include "../sqlbuilder/SQLBuilderBase.h"
 

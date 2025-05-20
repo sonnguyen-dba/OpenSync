@@ -30,7 +30,7 @@ public:
 
     static std::unordered_map<std::pair<std::string, int>, double, struct pair_hash> getPartitionLagMap();
 private:
-  
+    //static void backgroundMetricsThread();
     static std::pair<int, int> getRSSandVMMemory();
     static std::atomic<bool> stopFlag;
 };

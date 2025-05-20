@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../kafka/KafkaConsumer.h"
-#include "../WriteDataToDB/WriteDataToDB.h"
-#include "../config/ConfigLoader.h"
+#include "../writer/WriteDataToDB.h"
+#include "../reader/ConfigLoader.h"
 
 class MonitorManager {
 public:

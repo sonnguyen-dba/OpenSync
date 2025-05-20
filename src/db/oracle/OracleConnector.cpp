@@ -1,28 +1,32 @@
 #include "OracleConnector.h"
 #include "../../logger/Logger.h"
+#include "../../common/TimeUtils.h"
+#include "../../common/date.h"
 #include "SQLUtils.h"
 #include "MetricsExporter.h"
 #include "OracleSchemaCache.h"
-#include "DBException.h"
+#include "../DBException.h"
 #include <iostream>
 #include <algorithm>
-
+#include <sstream>
+#include <regex>
+#include <occi.h> 
 
 using namespace oracle::occi;
+// Assume OracleConnector class and necessary includes
+using oracle::occi::Statement;
+using oracle::occi::ResultSet;
+using oracle::occi::MetaData;
 
 OracleConnector::OracleConnector(const std::string& host, int port,
                                  const std::string& user, const std::string& password,
                                  const std::string& service)
     : host(host), port(port), user(user), password(password), service(service), env(nullptr), conn(nullptr) {}
 
-std::unique_ptr<DBConnector> OracleConnector::clone() const {
-    return std::make_unique<OracleConnector>(host, port, user, password, service);
-}
-
 /*
  * This functions for wallet
  *
-
+ 
  OracleConnector::OracleConnector(const std::string& tnsAlias)
     : tnsAlias(tnsAlias), env(nullptr), conn(nullptr) {}
 
@@ -31,12 +35,27 @@ std::unique_ptr<DBConnector> OracleConnector::clone() const {
     return std::make_unique<OracleConnector>(tnsAlias);
 }*/
 
+std::unique_ptr<DBConnector> OracleConnector::clone() const {
+    return std::make_unique<OracleConnector>(host, port, user, password, service);
+}
+
 OracleConnector::~OracleConnector() {
     disconnect();
 }
 
-//wallet
-/*bool OracleConnector::connect() {
+bool OracleConnector::connect() {
+    try {
+        env = Environment::createEnvironment(Environment::DEFAULT);
+        conn = env->createConnection(user, password, "//" + host + ":" + std::to_string(port) + "/" + service);
+	OpenSync::Logger::info("✅ Connected to Oracle successfully!");
+        return true;
+    } catch (SQLException& e) {
+	OpenSync::Logger::error("❌ Oracle connection failed: " + std::string(e.getMessage()));
+        return false;
+    }
+}
+/*
+bool OracleConnector::connect() {
     try {
         env = Environment::createEnvironment(Environment::DEFAULT);
         conn = env->createConnection("", "", tnsAlias); // Không cần user/password
@@ -48,25 +67,13 @@ OracleConnector::~OracleConnector() {
     }
 }*/
 
-bool OracleConnector::connect() {
-    try {
-        env = Environment::createEnvironment(Environment::DEFAULT);
-        conn = env->createConnection(user, password, "//" + host + ":" + std::to_string(port) + "/" + service);
-	Logger::info("✅ Connected to Oracle successfully!");
-        return true;
-    } catch (SQLException& e) {
-	Logger::error("❌ Oracle connection failed: " + std::string(e.getMessage()));
-        return false;
-    }
-}
-
 void OracleConnector::disconnect() {
     if (conn) {
         env->terminateConnection(conn);
         Environment::terminateEnvironment(env);
         conn = nullptr;
         env = nullptr;
-	Logger::info("🔌 Disconnected from Oracle.");
+	OpenSync::Logger::info("🔌 Disconnected from Oracle.");
     }
 }
 
@@ -75,16 +82,16 @@ bool OracleConnector::isConnected() {
 }
 
 bool OracleConnector::reconnect() {
-    Logger::warn("🔄 Connection lost. Attempting to reconnect...");
+    OpenSync::Logger::warn("🔄 Connection lost. Attempting to reconnect...");
 
     disconnect();  // 🛑 Đóng kết nối cũ trước khi tạo kết nối mới
 
     if (connect()) {
-	Logger::info("✅ Reconnected to Oracle successfully!");
+	OpenSync::Logger::info("✅ Reconnected to Oracle successfully!");
         return true;
     }
 
-    Logger::error("❌ Reconnection failed.");
+    OpenSync::Logger::error("❌ Reconnection failed.");
     return false;
 }
 
@@ -98,7 +105,7 @@ bool OracleConnector::executeQuery(const std::string& sql) {
 	conn->terminateStatement(stmt);
         return true;
     } catch (SQLException& e) {
-	Logger::error("❌ Oracle query failed: " + std::string(e.getMessage()));
+	OpenSync::Logger::error("❌ Oracle query failed: " + std::string(e.getMessage()));
         return false;
     }
 }
@@ -125,14 +132,14 @@ bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch
                 std::string tableKey = SQLUtils::extractTableFromInsert(sql);
 
                 if (result == DBExecResult::DUPLICATE_PK) {
-                    Logger::warn("⚠️ ORA-00001: Duplicate PK. Skipping row.");
+                    OpenSync::Logger::warn("⚠️ ORA-00001: Duplicate PK. Skipping row.");
                     MetricsExporter::getInstance().incrementCounter("oracle_duplicate_pk_skipped", {
                         {"table", tableKey}
                     });
                     skippedCount++;
                     continue;
                 } else if (result == DBExecResult::INVALID_DATA) {
-                    Logger::warn("⚠️ ORA-01839 or similar: Invalid date/data. Skipping row.");
+                    OpenSync::Logger::warn("⚠️ ORA-01839 or similar: Invalid date/data. Skipping row.");
                     MetricsExporter::getInstance().incrementCounter("oracle_invalid_data_skipped", {
                         {"table", tableKey},
                         {"error", DBExceptionHelper::toString(result)}
@@ -140,7 +147,7 @@ bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch
                     skippedCount++;
                     continue;
                 } else {
-                    Logger::error("❌ SQL execution failed: " + errMsg);
+                    OpenSync::Logger::error("❌ SQL execution failed: " + errMsg);
                     MetricsExporter::getInstance().incrementCounter("oracle_batch_failed", {
                         {"error", DBExceptionHelper::toString(result)}
                     });
@@ -155,15 +162,15 @@ bool OracleConnector::executeBatchQuery(const std::vector<std::string>& sqlBatch
         conn->terminateStatement(stmt);
 
         if (successCount > 0) {
-            //Logger::info("✅ Batch executed with " + std::to_string(successCount) + " successes, " + std::to_string(skippedCount) + " skipped.");
+            //OpenSync::Logger::debug("✅ Batch executed with " + std::to_string(successCount) + " successes, " + std::to_string(skippedCount) + " skipped.");
             return true;
         } else {
-            Logger::warn("⚠️ All rows skipped. Nothing committed.");
+            OpenSync::Logger::warn("⚠️ All rows skipped. Nothing committed.");
             return true;  // ✅ Không lỗi, nhưng toàn bộ bị skip
         }
 
     } catch (SQLException& e) {
-        Logger::error("❌ Batch execution failed: " + std::string(e.getMessage()));
+        OpenSync::Logger::error("❌ Batch execution failed: " + std::string(e.getMessage()));
         conn->rollback();
         if (stmt) conn->terminateStatement(stmt);
         return false;
@@ -183,7 +190,7 @@ std::map<std::string, OracleColumnInfo> OracleConnector::getFullColumnInfo(const
         owner = fullTableName.substr(0, pos);
         table = fullTableName.substr(pos + 1);
     } else {
-	Logger::error("❌ Invalid table name format (expect OWNER.TABLE): " + fullTableName);
+	OpenSync::Logger::error("❌ Invalid table name format (expect OWNER.TABLE): " + fullTableName);
         return result;
     }
 
@@ -212,7 +219,7 @@ std::map<std::string, OracleColumnInfo> OracleConnector::getFullColumnInfo(const
         result[colName] = info;
 
         // 🔍 Log kiểu dữ liệu đầy đủ
-        //Logger::info("   ↪️ " + colName + " : " + info.getFullTypeString());
+        //OpenSync::Logger::debug("   ↪️ " + colName + " : " + info.getFullTypeString());
     }
 
     stmt->closeResultSet(rs);
@@ -236,11 +243,76 @@ void OracleConnector::logStatementMemoryUsage() {
         while (rs->next()) {
             std::string name = rs->getString(1);
             int64_t value = static_cast<int64_t>(rs->getInt(2));
-	    Logger::debug("[OracleMem] " + name + ": " + std::to_string(value) + " bytes");
+	    OpenSync::Logger::debug("[OracleMem] " + name + ": " + std::to_string(value) + " bytes");
         }
         stmt->closeResultSet(rs);
         conn->terminateStatement(stmt.release());
     } catch (SQLException& e) {
-	    Logger::error("Oracle mem log error: " + std::string(e.getMessage()));
+	    OpenSync::Logger::error("Oracle mem log error: " + std::string(e.getMessage()));
     }
+}
+
+std::vector<std::map<std::string, std::string>> OracleConnector::queryTableWithOffset(
+    const std::string& schema, const std::string& table, int offset, int limit) {
+
+    std::vector<std::map<std::string, std::string>> result;
+    if (!conn) return result;
+
+    try {
+        // Truy vấn metadata để biết cột nào là DATE/TIMESTAMP
+        std::string metaQuery =
+            "SELECT column_name, data_type FROM all_tab_columns "
+            "WHERE owner = UPPER('" + schema + "') AND table_name = UPPER('" + table + "')";
+
+        Statement* metaStmt = conn->createStatement(metaQuery);
+        ResultSet* metaRs = metaStmt->executeQuery();
+
+        std::map<std::string, std::string> columnTypes;  // colName → data_type
+        while (metaRs->next()) {
+            std::string col = metaRs->getString(1);
+            std::string type = metaRs->getString(2);
+            columnTypes[col] = type;
+        }
+        metaStmt->closeResultSet(metaRs);
+        conn->terminateStatement(metaStmt);
+
+        // ✅ Tạo SELECT ... với TO_CHAR cho DATE/TIMESTAMP
+        std::string selectClause = "SELECT ";
+        int colIdx = 0;
+        for (const auto& [col, type] : columnTypes) {
+            if (colIdx++ > 0) selectClause += ", ";
+            if (type == "DATE")
+                selectClause += "TO_CHAR(" + col + ", 'YYYY-MM-DD HH24:MI:SS') AS " + col;
+            else if (type.find("TIMESTAMP") != std::string::npos)
+                selectClause += "TO_CHAR(" + col + ", 'YYYY-MM-DD HH24:MI:SS.FF6') AS " + col;
+            else
+                selectClause += col;
+        }
+
+        std::string query = selectClause + " FROM " + schema + "." + table +
+                            " OFFSET " + std::to_string(offset) +
+                            " ROWS FETCH NEXT " + std::to_string(limit) + " ROWS ONLY";
+
+        Statement* stmt = conn->createStatement(query);
+        ResultSet* rs = stmt->executeQuery();
+        std::vector<MetaData> meta = rs->getColumnListMetaData();
+        int colCount = meta.size();
+
+        while (rs->next()) {
+            std::map<std::string, std::string> row;
+            for (int i = 1; i <= colCount; ++i) {
+                std::string colName = meta[i - 1].getString(MetaData::ATTR_NAME);
+                std::string val = rs->isNull(i) ? "NULL" : rs->getString(i);
+                row[colName] = val;
+            }
+            result.push_back(std::move(row));
+        }
+
+        stmt->closeResultSet(rs);
+        conn->terminateStatement(stmt);
+    } catch (SQLException& e) {
+	 OpenSync::Logger::error("❌ queryTableWithOffset failed: " + std::string(e.getMessage()));
+    }
+
+    return result;
 }

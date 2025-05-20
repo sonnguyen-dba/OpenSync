@@ -58,8 +58,8 @@ int main() {
     //std::thread systemMetricsThread(SystemMetricsUtils::backgroundMetricsThread);
 
     // Start CheckpointManager
-    auto& checkpointMgr = CheckpointManager::getInstance("checkpoint/checkpoints.txt");
-    checkpointMgr.startAutoFlush(300);
+    auto& checkpointMgr = CheckpointManager::getInstance("checkpoints/checkpoints.txt");
+    checkpointMgr.startAutoFlush(60);
 
     // Kafka Consumer thread
     std::thread kafkaThread(kafkaConsumerThread, std::ref(consumer), std::ref(shouldShutdown));

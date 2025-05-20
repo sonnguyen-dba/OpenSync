@@ -5,7 +5,7 @@
 #include "../schema/OracleSchemaCache.h"
 #include "../logger/Logger.h"
 #include "../utils/SQLUtils.h"
-#include "../time/TimeUtils.h"
+#include "../common/TimeUtils.h"
 #include "FileWatcher.h"
 #include <sstream>
 #include <iostream>
@@ -52,6 +52,7 @@ KafkaProcessor::~KafkaProcessor() {
     if (lagUpdateThread.joinable()) lagUpdateThread.join();
 }
 
+
 void KafkaProcessor::addFilter(const FilterEntry& filter) {
     std::lock_guard<std::mutex> lock(filterMutex);
     filters.push_back(filter);
@@ -89,97 +90,84 @@ std::unordered_map<std::string, std::vector<std::string>> KafkaProcessor::proces
     std::unordered_map<std::string, std::vector<std::string>> batchMap;
     rapidjson::Document doc;
     if (doc.Parse(jsonMessage.c_str()).HasParseError()) {
-	Logger::error("KafkaProcessor: JSON parse error");
+	    OpenSync::Logger::error("KafkaProcessor: JSON parse error");
         return batchMap;
     }
-    if (!doc.HasMember("payload") || !doc["payload"].IsArray()) return batchMap;
+    if (!doc.HasMember("payload") || !doc["payload"].IsArray()) {
+	OpenSync::Logger::warn("⚠️ Missing or invalid payload array");
+	return batchMap;
+    }
+
     const auto& payload = doc["payload"];
+    //OpenSync::Logger::debug("📦 Kafka payload size = " + std::to_string(payload.Size()));
 
     auto now = std::chrono::steady_clock::now();
     std::unordered_map<std::string, std::unordered_set<std::string>> batchDedupCache;
 
     for (auto& record : payload.GetArray()) {
-        if (!record.HasMember("schema")) continue;
+        //if (!record.HasMember("schema")) continue;
+	if (!record.HasMember("schema")) {
+	    OpenSync::Logger::debug("❌ Bỏ qua record: thiếu schema");
+	    continue;
+	}
+
         const auto& schema = record["schema"];
         if (!schema.HasMember("owner") || !schema.HasMember("table")) continue;
 
         std::string owner = schema["owner"].GetString();
         std::string table = schema["table"].GetString();
 
+	// Convert to uppercase before checking
+	std::transform(owner.begin(), owner.end(), owner.begin(), ::toupper);
+	std::transform(table.begin(), table.end(), table.begin(), ::toupper);
+
         auto filter = matchFilter(owner, table);
         if (!filter.has_value()) continue;
+	/*if (!filter.has_value()) {
+	    OpenSync::Logger::debug("❌ Bỏ qua do không match filter: " + owner + "." + table);
+	    continue;
+	}*/
 
         std::string mappedOwner = mapping.count(owner) ? mapping[owner] : owner;
         std::string mappedTable = mapping.count(table) ? mapping[table] : table;
         std::string tableKey = mappedOwner + "." + mappedTable;
 
-        //Kafka lag tracking
-        /*auto nowSystem = std::chrono::system_clock::now();
+	// ✅ Safe fullTableName for schema lookup
+	std::string fullTableName;
+	if (activeDbType == "postgresql") {
+	    fullTableName = mappedOwner + "." + mappedTable;  // Ví dụ: CDC.TEST01
+	} else {
+	    fullTableName = mappedTable; // Oracle chỉ dùng tên bảng
+	}
+
+        // Kafka lag tracking
+        auto nowSystem = std::chrono::system_clock::now();
         auto messageTime = std::chrono::system_clock::time_point{std::chrono::milliseconds(timestamp)};
         auto lagMs = std::chrono::duration_cast<std::chrono::milliseconds>(nowSystem - messageTime).count();
+
         MetricsExporter::getInstance().setMetric("kafka_lag_ms", lagMs, {{"table", tableKey}});
+
         {
             std::lock_guard<std::mutex> lock(lagMutex);
-	          const size_t MAX_LAG_SAMPLES = 1000;
-	          if (kafkaLagTableMs[tableKey].size() >= MAX_LAG_SAMPLES) {
-	            kafkaLagTableMs[tableKey].erase(kafkaLagTableMs[tableKey].begin());
-	          }
-            kafkaLagTableMs[tableKey].push_back(lagMs);
+            const size_t MAX_LAG_SAMPLES = 1000;
 
-	          if (kafkaLagByPartition[{kafkaTopic, partition}].size() >= MAX_LAG_SAMPLES) {
-		          kafkaLagByPartition[{kafkaTopic, partition}].erase(kafkaLagByPartition[{kafkaTopic, partition}].begin());
-	          }
-            kafkaLagByPartition[{kafkaTopic, partition}].push_back(lagMs);
-        }*/
-	// Kafka lag tracking
-	/*auto nowSystem = std::chrono::system_clock::now();
-	auto messageTime = std::chrono::system_clock::time_point{std::chrono::milliseconds(timestamp)};
-	auto lagMs = std::chrono::duration_cast<std::chrono::milliseconds>(nowSystem - messageTime).count();
-	MetricsExporter::getInstance().setMetric("kafka_lag_ms", lagMs, {{"table", tableKey}});
+            auto& tableLagVec = kafkaLagTableMs[tableKey];
+            tableLagVec.push_back(lagMs);
+            if (tableLagVec.size() > MAX_LAG_SAMPLES + 100) {
+                tableLagVec.erase(tableLagVec.begin(), tableLagVec.end() - MAX_LAG_SAMPLES);
+                std::vector<double>().swap(tableLagVec);
+            }
 
-	{
-	    std::lock_guard<std::mutex> lock(lagMutex);
+            auto& partitionLagVec = kafkaLagByPartition[{kafkaTopic, partition}];
+            partitionLagVec.push_back(lagMs);
+            if (partitionLagVec.size() > MAX_LAG_SAMPLES + 100) {
+                partitionLagVec.erase(partitionLagVec.begin(), partitionLagVec.end() - MAX_LAG_SAMPLES);
+                std::vector<double>().swap(partitionLagVec);
+            }
 
-	    kafkaLagTableMs[tableKey].push_back(lagMs);
-	    kafkaLagByPartition[{kafkaTopic, partition}].push_back(lagMs);
-
-	    // 🧹 Shrink nếu quá giới hạn
-	    shrinkLagBuffers(tableKey, {kafkaTopic, partition});
-
-	    // 🕒 Ghi nhận thời gian cập nhật cuối
-	    auto nowSteady = std::chrono::steady_clock::now();
-	    tableLagLastUpdate[tableKey] = nowSteady;
-	    partitionLagLastUpdate[{kafkaTopic, partition}] = nowSteady;
-	}*/
-
-	auto nowSystem = std::chrono::system_clock::now();
-	auto messageTime = std::chrono::system_clock::time_point{std::chrono::milliseconds(timestamp)};
-	auto lagMs = std::chrono::duration_cast<std::chrono::milliseconds>(nowSystem - messageTime).count();
-
-	MetricsExporter::getInstance().setMetric("kafka_lag_ms", lagMs, {{"table", tableKey}});
-
-	{
-	    std::lock_guard<std::mutex> lock(lagMutex);
-	    const size_t MAX_LAG_SAMPLES = 1000;
-
-	    auto& tableLagVec = kafkaLagTableMs[tableKey];
-	    tableLagVec.push_back(lagMs);
-	    if (tableLagVec.size() > MAX_LAG_SAMPLES + 100) {
-	        tableLagVec.erase(tableLagVec.begin(), tableLagVec.end() - MAX_LAG_SAMPLES);
-	        std::vector<double>().swap(tableLagVec); // shrink
-	    }
-
-	    auto& partitionLagVec = kafkaLagByPartition[{kafkaTopic, partition}];
-	    partitionLagVec.push_back(lagMs);
-	    if (partitionLagVec.size() > MAX_LAG_SAMPLES + 100) {
-	        partitionLagVec.erase(partitionLagVec.begin(), partitionLagVec.end() - MAX_LAG_SAMPLES);
-	        std::vector<double>().swap(partitionLagVec);
-	    }
-
-	    // ⏱️ Track last update time
-	    tableLagLastUpdate[tableKey] = std::chrono::steady_clock::now();
-	    partitionLagLastUpdate[{kafkaTopic, partition}] = std::chrono::steady_clock::now();
-	}
+            tableLagLastUpdate[tableKey] = std::chrono::steady_clock::now();
+            partitionLagLastUpdate[{kafkaTopic, partition}] = std::chrono::steady_clock::now();
+        }
 
         if (!record.HasMember("op") || !record["op"].IsString()) continue;
         std::string op = record["op"].GetString();
@@ -187,34 +175,27 @@ std::unordered_map<std::string, std::vector<std::string>> KafkaProcessor::proces
         std::string sql;
         std::string opType;
 
+        // 💥 NEW: get sqlBuilder safely
+        //auto it = sqlBuilders.find("oracle");
+
+        auto it = sqlBuilders.find(activeDbType);
+        if (it == sqlBuilders.end() || !it->second) {
+            OpenSync::Logger::error("❌ SQLBuilder for dbType '" + activeDbType + "' is not registered or null. Skipping.");
+            continue;
+        }
+        SQLBuilderBase* builder = it->second.get();
+
         if (op == "c" && record.HasMember("after")) {
             const auto& data = record["after"];
             if (data.HasMember(filter->primaryKey.c_str())) {
-                //Chuẩn hóa dedupKey từ primary key value
                 std::string pkValue = SQLUtils::convertToSQLValue(data[filter->primaryKey.c_str()], filter->primaryKey);
                 std::string dedupKey = tableKey + ":" + pkValue;
 
-                //Check duplicate trong batch hiện tại
                 if (batchDedupCache[tableKey].count(dedupKey)) {
                     continue;
                 }
                 batchDedupCache[tableKey].insert(dedupKey);
 
-                //Check duplicate toàn cục (Kafka replay)
-                /*{
-                    std::lock_guard<std::mutex> gLock(globalCacheMutex);
-                    auto it = recentGlobalPKCache.find(dedupKey);
-                    if (it != recentGlobalPKCache.end()) {
-                        auto age = std::chrono::duration_cast<std::chrono::seconds>(now - it->second).count();
-                        if (age < 60) {
-			                      Logger::warn("🔁 Skipped replayed message with dedupKey: " + dedupKey);
-                            continue;
-                        }
-                    }
-                    recentGlobalPKCache[dedupKey] = now;
-                }*/
-
-                //Check dedup theo cache 10s cục bộ (per-table)
                 {
                     std::lock_guard<std::mutex> lock(dedupMutex);
                     auto& tableCache = recentPrimaryKeyCachePerTable[tableKey];
@@ -232,18 +213,16 @@ std::unordered_map<std::string, std::vector<std::string>> KafkaProcessor::proces
                 }
             }
 
-            //sql = buildInsertSQL(mappedOwner, mappedTable, data);
-	          sql = sqlBuilders["oracle"]->buildInsertSQL(mappedOwner, mappedTable, data);
+            sql = builder->buildInsertSQL(mappedOwner, mappedTable, data);
+	    OpenSync::Logger::debug("🔎 op=" + op + ", has after=" + std::to_string(record.HasMember("after")));
             opType = "insert";
 
         } else if (op == "u" && record.HasMember("after")) {
-            //sql = buildUpdateSQL(mappedOwner, mappedTable, record["after"], filter->primaryKey);
-	          sql = sqlBuilders["oracle"]->buildUpdateSQL(mappedOwner, mappedTable, record["after"], filter->primaryKey);
+            sql = builder->buildUpdateSQL(mappedOwner, mappedTable, record["after"], filter->primaryKey);
             opType = "update";
 
         } else if (op == "d" && record.HasMember("before")) {
-            //sql = buildDeleteSQL(mappedOwner, mappedTable, record["before"], filter->primaryKey);
-	          sql = sqlBuilders["oracle"]->buildDeleteSQL(mappedOwner, mappedTable, record["before"], filter->primaryKey);
+            sql = builder->buildDeleteSQL(mappedOwner, mappedTable, record["before"], filter->primaryKey);
             opType = "delete";
         }
 
@@ -259,7 +238,7 @@ std::unordered_map<std::string, std::vector<std::string>> KafkaProcessor::proces
     }
 
     doc.GetAllocator().Clear();
-    doc.SetObject(); // reset lại Document
+    doc.SetObject(); // Reset document
 
     return batchMap;
 }
@@ -277,7 +256,7 @@ void KafkaProcessor::updateProcessingRate() {
 }
 
 void KafkaProcessor::loadFilterConfig(const std::string& configPath) {
-    Logger::info("KafkaProcessor loading filter config: " + configPath);
+    OpenSync::Logger::info("KafkaProcessor loading filter config: " + configPath);
     std::ifstream ifs(configPath);
     if (!ifs.is_open()) return;
     rapidjson::IStreamWrapper isw(ifs);
@@ -320,7 +299,7 @@ void KafkaProcessor::startAutoReload(const std::string& configPath, KafkaConsume
         FileWatcher::watchFile(configPath, [this, configPath, consumer]() {
             std::lock_guard<std::mutex> lock(filterReloadMutex);
 
-            Logger::info("🔁 KafkaProcessor detected change in filter config: " + configPath);
+            OpenSync::Logger::info("🔁 KafkaProcessor detected change in filter config: " + configPath);
             isReloading = true;
 
             if (FilterConfigLoader::getInstance().loadConfig(configPath)) {
@@ -333,21 +312,21 @@ void KafkaProcessor::startAutoReload(const std::string& configPath, KafkaConsume
                 for (const auto& f : newFilters) {
                     std::string fullTable = f.owner + "." + f.table;
                     if (existingTables.find(fullTable) == existingTables.end()) {
-                        Logger::info("🆕 New table detected: " + fullTable);
+                        OpenSync::Logger::info("🆕 New table detected: " + fullTable);
                         OracleSchemaCache::getInstance().loadSchemaIfNeeded(fullTable, config);
                     }
                     addFilter(f);
                 }
 
                 filters = newFilters;
-                Logger::info("✅ Processor reloaded filter config.");
+                OpenSync::Logger::info("✅ Processor reloaded filter config.");
 
                 // 👉 Nếu có KafkaConsumer truyền vào, reload luôn
                 if (consumer) {
                     consumer->reloadTableFilter(configPath);
                 }
             } else {
-                Logger::error("❌ Failed to reload filter config.");
+                OpenSync::Logger::error("❌ Failed to reload filter config.");
             }
 
             isReloading = false;
@@ -355,12 +334,27 @@ void KafkaProcessor::startAutoReload(const std::string& configPath, KafkaConsume
     });
 }
 
-size_t KafkaProcessor::estimateDedupCacheMemory() {
+/*size_t KafkaProcessor::estimateDedupCacheMemory() {
     size_t total = 0;
     for (const auto& [table, cache] : recentPrimaryKeyCachePerTable) {
         total += sizeof(table) + cache.size() * (64 + sizeof(std::chrono::steady_clock::time_point));
     }
     total += recentGlobalPKCache.size() * (64 + sizeof(std::chrono::steady_clock::time_point));
+    return total;
+}*/
+
+size_t KafkaProcessor::estimateDedupCacheMemory() {
+    size_t total = 0;
+
+    // Estimate per-table dedup cache memory
+    for (const auto& [table, cache] : recentPrimaryKeyCachePerTable) {
+        total += table.capacity(); // approximate memory used by string
+        total += cache.size() * (64 + sizeof(std::chrono::steady_clock::time_point));
+    }
+
+    // Estimate global dedup cache memory
+    total += recentGlobalPKCache.size() * (64 + sizeof(std::chrono::steady_clock::time_point));
+
     return total;
 }
 
@@ -381,7 +375,7 @@ std::unordered_map<std::pair<std::string, int>, double, pair_hash> KafkaProcesso
 
 void KafkaProcessor::shrinkLagBuffersIfOversized() {
     std::lock_guard<std::mutex> lock(lagMutex);
-    constexpr size_t MAX_LAG_SAMPLES = 1000;
+    constexpr size_t MAX_LAG_SAMPLES = 100;
 
     for (auto& [key, vec] : kafkaLagByPartition) {
         if (vec.size() > MAX_LAG_SAMPLES) {
@@ -471,7 +465,7 @@ void KafkaProcessor::startDedupCleanup() {
                     }
                 }
                 size_t after = cache.size();
-		            //Logger::info("Global dedup cache size: " + std::to_string(recentGlobalPKCache.size()));
+		//OpenSync::Logger::info("Global dedup cache size: " + std::to_string(recentGlobalPKCache.size()));
                 MetricsExporter::getInstance().setMetric("dedup_cache_size", after, {{"table", table}});
             }
         }
@@ -527,6 +521,37 @@ void KafkaProcessor::startGlobalDedupCleanup() {
     });
 }
 
+/*void KafkaProcessor::startGlobalDedupCleanup() {
+    stopGlobalCleanup = false;
+    globalDedupCleanupThread = std::thread([this]() {
+        while (!stopGlobalCleanup.load()) {
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+            auto now = std::chrono::steady_clock::now();
+            size_t before = 0;
+            size_t after = 0;
+
+            {
+                std::lock_guard<std::mutex> lock(globalCacheMutex);
+                //before = recentGlobalPKCache.size();
+
+                for (auto it = recentGlobalPKCache.begin(); it != recentGlobalPKCache.end();) {
+                    if (std::chrono::duration_cast<std::chrono::seconds>(now - it->second).count() >= 100) {
+                        it = recentGlobalPKCache.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+                after = recentGlobalPKCache.size();
+            }
+
+            OpenSync::Logger::debug("🧹 Global dedup cache cleanup: before=" + std::to_string(before) +
+                     ", after=" + std::to_string(after));
+
+            MetricsExporter::getInstance().setMetric("global_dedup_cache_size", after);
+        }
+    });
+}*/
+
 void KafkaProcessor::stopGlobalDedupCleanup() {
     stopGlobalCleanup = true;
     if (globalDedupCleanupThread.joinable()) {
@@ -556,7 +581,7 @@ void KafkaProcessor::clearLagBuffers() {
     std::lock_guard<std::mutex> lock(lagMutex);
     kafkaLagTableMs.clear();
     kafkaLagByPartition.clear();
-    Logger::warn("⚠️ Cleared all Kafka lag buffers to reduce memory.");
+    OpenSync::Logger::warn("⚠️ Cleared all Kafka lag buffers to reduce memory.");
     MetricsExporter::getInstance().incrementCounter("kafka_lag_buffer_clear_total");
 }
 
@@ -571,7 +596,7 @@ void KafkaProcessor::shrinkLagBuffers(int maxAgeSeconds) {
         if (lastUpdateIt != partitionLagLastUpdate.end()) {
             auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - lastUpdateIt->second).count();
             if (elapsed > maxAgeSeconds) {
-                Logger::info("🧹 Shrinking lag buffer for topic=" + it->first.first +
+                OpenSync::Logger::info("🧹 Shrinking lag buffer for topic=" + it->first.first +
                              ", partition=" + std::to_string(it->first.second) +
                              ", last updated " + std::to_string(elapsed) + "s ago");
                 it->second.clear();
@@ -581,11 +606,12 @@ void KafkaProcessor::shrinkLagBuffers(int maxAgeSeconds) {
     }
 
     if (removed > 0) {
-        Logger::info("✅ Shrunk " + std::to_string(removed) + " lag buffers older than "
+        OpenSync::Logger::info("✅ Shrunk " + std::to_string(removed) + " lag buffers older than "
                      + std::to_string(maxAgeSeconds) + "s");
     }
 }
 
 void KafkaProcessor::registerSQLBuilder(const std::string& dbType, std::unique_ptr<SQLBuilderBase> builder) {
     sqlBuilders[dbType] = std::move(builder);
+    OpenSync::Logger::info("✅ Registered SQLBuilder for dbType: " + dbType);
 }

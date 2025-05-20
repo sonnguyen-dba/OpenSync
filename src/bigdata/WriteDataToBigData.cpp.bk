@@ -1,0 +1,67 @@
+#include "WriteDataToBigData.h"
+#include <iostream>
+#include <future>
+
+WriteDataToBigData::WriteDataToBigData() {}
+
+WriteDataToBigData::~WriteDataToBigData() {
+    bigDataConnectors.clear();
+}
+
+void WriteDataToBigData::addBigDataConnector(const std::string& bigDataType, std::unique_ptr<BigDataConnector> connector) {
+    bigDataConnectors[bigDataType] = std::move(connector);
+}
+
+bool WriteDataToBigData::writeToBigData(const std::string& bigDataType, const std::vector<std::string>& jsonData) {
+    if (bigDataConnectors.find(bigDataType) == bigDataConnectors.end()) {
+	LOG_ERROR("Big Data connector for " + bigDataType + " not found!");
+        return false;
+    }
+
+    auto& bigDataConnector = bigDataConnectors[bigDataType];
+
+    if (!bigDataConnector->isConnected()) {
+        if (!bigDataConnector->connect()) {
+	    LOG_ERROR("Failed to connect to " + bigDataType);
+            return false;
+        }
+    }
+
+    bool success = bigDataConnector->writeData(jsonData);
+    if (success) {
+        LOG_INFO("Successfully wrote data to " + bigDataType);
+    } else {
+        LOG_ERROR("Failed to write data to " + bigDataType);
+    }
+    return success;
+
+    //return bigDataConnector->writeData(jsonData);
+}
+
+/////////////////////////////////////////////
+//Tối ưu Ghi dữ liệu Big Data song song
+//Hiện tại, chúng ta ghi Pinot, Iceberg, Kudu tuần tự, có thể chạy song song bằng std::async.
+/*
+bool WriteDataToBigData::writeToBigData(const std::string& bigDataType, const std::vector<std::string>& jsonData) {
+    if (bigDataConnectors.find(bigDataType) == bigDataConnectors.end()) {
+        LOG_ERROR("Big Data connector for " + bigDataType + " not found!");
+        return false;
+    }
+
+    auto& bigDataConnector = bigDataConnectors[bigDataType];
+
+    if (!bigDataConnector->isConnected()) {
+        if (!bigDataConnector->connect()) {
+            LOG_ERROR("Failed to connect to " + bigDataType);
+            return false;
+        }
+    }
+
+    LOG_INFO("Writing data to " + bigDataType + " asynchronously.");
+    
+    auto future = std::async(std::launch::async, [&]() {
+        return bigDataConnector->writeData(jsonData);
+    });
+
+    return future.get();
+}*/

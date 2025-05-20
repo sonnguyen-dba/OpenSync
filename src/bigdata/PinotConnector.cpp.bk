@@ -1,0 +1,49 @@
+#include "PinotConnector.h"
+#include <iostream>
+#include <curl/curl.h>
+
+PinotConnector::PinotConnector(const std::string& brokerUrl) 
+    : brokerUrl(brokerUrl), connected(false) {}
+
+PinotConnector::~PinotConnector() {
+    disconnect();
+}
+
+bool PinotConnector::connect() {
+    connected = true;
+    std::cout << "Connected to Pinot at " << brokerUrl << std::endl;
+    return true;
+}
+
+void PinotConnector::disconnect() {
+    connected = false;
+}
+
+bool PinotConnector::isConnected() {
+    return connected;
+}
+
+bool PinotConnector::writeData(const std::vector<std::string>& jsonData) {
+    if (!isConnected()) {
+        std::cerr << "Pinot is not connected!" << std::endl;
+        return false;
+    }
+
+    for (const auto& json : jsonData) {
+        CURL* curl = curl_easy_init();
+        if (!curl) return false;
+
+        curl_easy_setopt(curl, CURLOPT_URL, (brokerUrl + "/ingest").c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json.c_str());
+        CURLcode res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+
+        if (res != CURLE_OK) {
+            std::cerr << "Failed to write data to Pinot!" << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+

@@ -1,10 +1,10 @@
 #pragma once
 
 #include <memory>
-#include "../config/ConfigLoader.h"
+#include "../reader/ConfigLoader.h"
 #include "../kafka/KafkaProcessor.h"
 #include "../kafka/KafkaConsumer.h"
-#include "../WriteDataToDB/WriteDataToDB.h"
+#include "../writer/WriteDataToDB.h"
 #include "../metrics/MetricsServer.h"
 
 struct AppComponents {

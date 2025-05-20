@@ -23,6 +23,7 @@ struct OracleColumnInfo {
         return dataType;
     }
 
+    // ✅ So sánh bằng
     bool operator==(const OracleColumnInfo& other) const {
         return dataType == other.dataType &&
                dataLength == other.dataLength &&
@@ -31,6 +32,7 @@ struct OracleColumnInfo {
                nullable == other.nullable;
     }
 
+    // ✅ So sánh khác
     bool operator!=(const OracleColumnInfo& other) const {
         return !(*this == other);
     }

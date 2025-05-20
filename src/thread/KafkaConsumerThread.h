@@ -3,6 +3,9 @@
 
 #include "../kafka/KafkaConsumer.h"
 
+//void kafkaConsumerThread(KafkaConsumer& consumer);
+//void startKafkaConsumer(KafkaConsumer& consumer);
+
 void kafkaConsumerThread(KafkaConsumer& consumer, std::atomic<bool>& shutdown);
 void startKafkaConsumer(KafkaConsumer& consumer, std::atomic<bool>& shutdown);
 

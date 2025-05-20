@@ -1,10 +1,11 @@
-cmake_minimum_required(VERSION 3.16)
-project(OpenSync VERSION 1.0.0 DESCRIPTION "OpenSync, Consume data from Kafka Json by produce from @OpenLogReplicator to databases" LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.16) 
+project(OpenSync VERSION 1.0.0 DESCRIPTION "OpenSync, Sync data from Kafka to databases" LANGUAGES CXX)
 
+set(SCHEMA_VERSION "0.0.1") 
 string(TIMESTAMP CMAKE_BUILD_TIMESTAMP "%Y-%m-%d %H:%M" UTC)
 
 # ✅ C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17) 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ✅ Compiler flags
@@ -12,102 +13,119 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -Wall -Wextra -Wformat=2 -D_GLIBC
 
 # ✅ External include directories
 
-list(APPEND EXTERNAL_INCLUDE_DIRS
-	/opt/rapidjson/include
-	/opt/librdkafka/include
-	/opt/instantclient_19_18/sdk/include)
+list(APPEND EXTERNAL_INCLUDE_DIRS 
+	/opt/rapidjson/include 
+	/opt/librdkafka/include 
+	/opt/instantclient_19_18/sdk/include 
+) 
 
 include_directories(${EXTERNAL_INCLUDE_DIRS})
 
 # ✅ Include directories for source organization
 
-list(APPEND SOURCE_INCLUDE_DIRS
-	${CMAKE_CURRENT_SOURCE_DIR}
-	${CMAKE_CURRENT_SOURCE_DIR}/app
-	${CMAKE_CURRENT_SOURCE_DIR}/common
-	${CMAKE_CURRENT_SOURCE_DIR}/config
-	${CMAKE_CURRENT_SOURCE_DIR}/db/oracle
-	${CMAKE_CURRENT_SOURCE_DIR}/db/postgresql
-	${CMAKE_CURRENT_SOURCE_DIR}/kafka
-	${CMAKE_CURRENT_SOURCE_DIR}/logger
-	${CMAKE_CURRENT_SOURCE_DIR}/metrics
-	${CMAKE_CURRENT_SOURCE_DIR}/thread
-	${CMAKE_CURRENT_SOURCE_DIR}/utils
-	${CMAKE_CURRENT_SOURCE_DIR}/writer)
+list(APPEND SOURCE_INCLUDE_DIRS 
+	${CMAKE_CURRENT_SOURCE_DIR} 
+	${CMAKE_CURRENT_SOURCE_DIR}/app 
+	${CMAKE_CURRENT_SOURCE_DIR}/common 
+	${CMAKE_CURRENT_SOURCE_DIR}/reader 
+	${CMAKE_CURRENT_SOURCE_DIR}/db/oracle 
+	${CMAKE_CURRENT_SOURCE_DIR}/db/postgresql 
+	${CMAKE_CURRENT_SOURCE_DIR}/dbconnector 
+	${CMAKE_CURRENT_SOURCE_DIR}/initialload 
+	${CMAKE_CURRENT_SOURCE_DIR}/kafka 
+	${CMAKE_CURRENT_SOURCE_DIR}/logger 
+	${CMAKE_CURRENT_SOURCE_DIR}/metrics 
+	${CMAKE_CURRENT_SOURCE_DIR}/schema 
+	${CMAKE_CURRENT_SOURCE_DIR}/sqlbuilder 
+	${CMAKE_CURRENT_SOURCE_DIR}/thread 
+	${CMAKE_CURRENT_SOURCE_DIR}/time 
+	${CMAKE_CURRENT_SOURCE_DIR}/utils 
+	${CMAKE_CURRENT_SOURCE_DIR}/writer 
+	) 
 include_directories(${SOURCE_INCLUDE_DIRS})
 
 # ✅ External library directories
 
-list(APPEND LIBRARY_DIRS
-	/opt/librdkafka/lib
-	/opt/instantclient_19_18
-)
+list(APPEND LIBRARY_DIRS 
+	/opt/librdkafka/lib 
+	/opt/instantclient_19_18 
+) 
 link_directories(${LIBRARY_DIRS})
 
 # Define source files by directory using list(APPEND)
 
 list(APPEND ListMain main.cpp )
 list(APPEND ListApp app/AppInitializer.cpp )
-list(APPEND ListCommon common/Queues.cpp
-											 common/TimeUtils.cpp)
+list(APPEND ListCommon common/Queues.cpp 
+		       common/TimeUtils.cpp
+	       	       common/date.h)
 
-list(APPEND ListConfig
-	config/ConfigLoader.cpp
-	config/FilterConfigLoader.cpp
-)
+list(APPEND ListReader 
+	reader/ConfigLoader.cpp
+	reader/FilterConfigLoader.cpp)
 
-list(APPEND ListDB db/DBConnectorFactory.cpp)
-									 db/DBException.cpp
+list(APPEND ListOracle db/oracle/OracleConnector.cpp)
+list(APPEND ListPostgreSQL 
+	db/postgresql/PostgreSQLConnector.cpp
+	db/postgresql/ConnectorUtils.cpp)
 
-list(APPEND ListOracle db/oracle/OracleConnector.cpp
-											 db/oracle/OracleSchemaCache.cpp
-											 db/oracle//OracleSQLBuilder.cpp
-list(APPEND ListPostgreSQL
-            db/postgresql/PostgreSQLConnector.cpp
-            db/postgresql/ConnectorUtils.cpp
-						db/postgresql/PostgreSQLSchemaCache.cpp
-						db/postgresql/PostgreSQLSQLBuilder.cpp)
+list(APPEND ListDBConnector db/DBConnectorFactory.cpp
+			    db/DBException.cpp)
 
-list(APPEND ListKafka
+list(APPEND Listinitload initialload/InitialLoaderOracleToPostgreSQL.cpp
+			 initialload/SchemaMapper.cpp)
+
+list(APPEND ListKafka 
 	kafka/KafkaConsumer.cpp
 	kafka/KafkaProcessor.cpp
 	kafka/FileWatcher.cpp)
 
-list(APPEND ListLogger
+list(APPEND ListLogger 
 	logger/Logger.cpp)
 
-list(APPEND ListMetrics
+list(APPEND ListMetrics 
 	metrics/MetricsServer.cpp
 	metrics/MetricsExporter.cpp
 	metrics/SystemMetricsUtils.cpp
 	metrics/MonitorManager.cpp)
 
-list(APPEND ListThread
-  thread/KafkaConsumerThread.cpp
-  thread/dbwriterthread/DBWriterThread.cpp
-  thread/dbwriterthread/ThreadPoolDBWriter.cpp
-  thread/workerthread/WorkerThread.cpp
-  thread/monitorthread/MonitorThread.cpp)
+list(APPEND ListSchema 
+	schema/OracleSchemaCache.cpp
+	schema/PostgreSQLSchemaCache.cpp)
 
-list(APPEND ListUtils
+list(APPEND ListSQLBuilder 
+	sqlbuilder/OracleSQLBuilder.cpp
+	sqlbuilder/PostgreSQLSQLBuilder.cpp)
+
+list(APPEND ListThread 
+	thread/KafkaConsumerThread.cpp 
+	thread/dbwriterthread/DBWriterThread.cpp
+	thread/dbwriterthread/ThreadPoolDBWriter.cpp
+	thread/workerthread/WorkerThread.cpp
+	thread/monitorthread/MonitorThread.cpp)
+
+list(APPEND ListUtils 
 	utils/BufferGCManager.cpp
 	utils/MemoryUtils.cpp
-	utils/SQLUtils.cpp
-)
+	utils/SQLUtils.cpp)
 
 list(APPEND ListWriter writer/CheckpointManager.cpp
-											 writer/WriteDataToDB.cpp)
+		       writer/WriteDataToDB.cpp)
 
 # ✅ Create object libraries for each source list
 add_library(LibMain OBJECT ${ListMain})
 add_library(LibApp OBJECT ${ListApp})
-add_library(LibConfig OBJECT ${ListConfig})
+add_library(LibCommon OBJECT ${ListCommon})
+add_library(LibReader OBJECT ${ListReader})
 add_library(LibOracle OBJECT ${ListOracle})
 add_library(LibPostgreSQL OBJECT ${ListPostgreSQL})
-add_library(LibDB OBJECT ${ListDB})
+add_library(LibDBConnector OBJECT ${ListDBConnector})
+add_library(LibInitload OBJECT ${Listinitload})
 add_library(LibKafka OBJECT ${ListKafka})
 add_library(LibLogger OBJECT ${ListLogger})
 add_library(LibMetrics OBJECT ${ListMetrics})
+add_library(LibSchema OBJECT ${ListSchema})
+add_library(LibSQLBuilder OBJECT ${ListSQLBuilder})
 add_library(LibThread OBJECT ${ListThread})
 add_library(LibUtils OBJECT ${ListUtils})
 add_library(LibWriter OBJECT ${ListWriter})
@@ -122,22 +140,26 @@ add_executable(OpenSync ${ListMain})
 target_link_libraries(OpenSync
     LibApp
     LibCommon
-    LibConfig
-		LibDB
+    LibReader
     LibOracle
     LibPostgreSQL
+    LibDBConnector
+    LibInitload
     LibKafka
     LibLogger
     LibMetrics
+    LibSchema
+    LibSQLBuilder
     LibThread
     LibUtils
-    LibWriter)
+    LibWriter
+)
 
 #add_executable(OpenSync ${ALL_SOURCES})
 
 # ✅ Link libraries
 
-list(APPEND LINK_LIBRARIES occi clntsh rdkafka pq pthread stdc++fs)
+list(APPEND LINK_LIBRARIES occi clntsh rdkafka pq pthread stdc++fs) 
 target_link_libraries(OpenSync ${LINK_LIBRARIES})
 
 # ✅ Convenience: custom "run" target

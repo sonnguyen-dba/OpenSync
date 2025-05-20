@@ -1,7 +1,7 @@
 #pragma once
 
 #include "OracleColumnInfo.h"
-#include "../config/ConfigLoader.h"
+#include "../reader/ConfigLoader.h"
 #include "../db/oracle/OracleConnector.h"
 #include <map>
 #include <mutex>

@@ -3,14 +3,14 @@
 #include "../../utils/MutexRegistry.h"
 #include "../../metrics/MetricsExporter.h"
 #include "../../logger/Logger.h"
-#include "../../WriteDataToDB/WriteDataToDB.h"
+#include "../../writer/WriteDataToDB.h"
 #include "../../kafka/KafkaConsumer.h"
 #include "../../common/Queues.h"
 #include <chrono>
 #include <sstream>
 #include <atomic>
 
-static constexpr int maxIdleSeconds = 10; // Timeout để flush batch
+static constexpr int maxIdleSeconds = 60; // Timeout để flush batch
 static PerTableMutexManager mutexManager;
 
 

@@ -44,14 +44,14 @@ void BufferGCManager::shrinkBuffersIfNeeded() {
             tableBufferRef[tableKey].shrink_to_fit();
             msgBufferRef[tableKey].shrink_to_fit();
 
-	          OpenSync::Logger::info("🧹 Shrunk buffer for inactive table: " + tableKey);
+	    OpenSync::Logger::info("🧹 Shrunk buffer for inactive table: " + tableKey);
             MetricsExporter::getInstance().incrementCounter("buffer_shrink_total", {{"table", tableKey}});
             shrinkCount++;
         }
     }
 
     if (shrinkCount > 0) {
-	       OpenSync::Logger::debug("🔄 Shrink cycle complete. Total tables shrunk: " + std::to_string(shrinkCount));
+	OpenSync::Logger::debug("🔄 Shrink cycle complete. Total tables shrunk: " + std::to_string(shrinkCount));
     }
 }
 
@@ -67,7 +67,7 @@ void BufferGCManager::start(std::unordered_map<std::string, std::pair<std::vecto
                 if (elapsed >= ttlSeconds) {
                     std::string table = it->first;
                     //size_t oldCap = it->second.first.capacity();
-		                OpenSync::Logger::info("♻️ GC table buffer: " + table + ", elapsed=" + std::to_string(elapsed) + "s, size=" + std::to_string(it->second.first.size()));
+		    OpenSync::Logger::info("♻️ GC table buffer: " + table + ", elapsed=" + std::to_string(elapsed) + "s, size=" + std::to_string(it->second.first.size()));
                     std::vector<std::string>().swap(it->second.first);
                     it = tableSQLBuffer.erase(it);
 

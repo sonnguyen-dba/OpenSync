@@ -34,7 +34,7 @@ std::string DataTypeHandler::formatValue(const rapidjson::Value& value) {
         return "\"" + strValue + "\"";  // Bao lại bằng nháy kép
     } else if (value.IsBool()) {
         return value.GetBool() ? "true" : "false";
-	       //return value.GetBool() ? "1" : "0";
+	//return value.GetBool() ? "1" : "0";
     } else if (value.IsInt()) {
         return std::to_string(value.GetInt());
     } else if (value.IsInt64()) {
@@ -57,3 +57,37 @@ std::string DataTypeHandler::formatValue(const rapidjson::Value& value) {
         return "\"Unsupported\"";  // Dùng nháy kép thay vì nháy đơn
     }
 }
+
+/*
+std::string DataTypeHandler::formatValue(const rapidjson::Value& value) {
+    if (value.IsString()) {
+        std::string strValue = value.GetString();
+        size_t pos = 0;
+        while ((pos = strValue.find("\"", pos)) != std::string::npos) {
+            strValue.insert(pos, "\\");
+            pos += 2;
+        }
+        return "\"" + strValue + "\"";  // Đổi dấu nháy đơn thành nháy kép
+    } else if (value.IsBool()) {
+        return value.GetBool() ? "true" : "false";
+    } else if (value.IsInt()) {
+        return std::to_string(value.GetInt());
+    } else if (value.IsInt64()) {
+        return std::to_string(value.GetInt64());
+    } else if (value.IsDouble()) {
+        std::ostringstream oss;
+        oss.precision(10);
+        oss << value.GetDouble();
+        return oss.str();
+    } else if (value.IsNull()) {
+        return "null";
+    } else if (value.IsArray() || value.IsObject()) {
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        value.Accept(writer);
+        return "\"" + std::string(buffer.GetString()) + "\"";  // Bao lại bằng nháy kép
+    } else {
+        return "\"Unsupported\"";  // Dùng nháy kép thay vì nháy đơn
+    }
+}
+*/

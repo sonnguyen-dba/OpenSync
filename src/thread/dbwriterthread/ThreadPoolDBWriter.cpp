@@ -73,4 +73,3 @@ void ThreadPoolDBWriter::workerThread() {
         }
     }
 }
-

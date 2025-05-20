@@ -1,6 +1,6 @@
 #include "SQLUtils.h"
 #include "../logger/Logger.h"
-#include "../time/TimeUtils.h"
+#include "../common/TimeUtils.h"
 #include "../schema/OracleSchemaCache.h"
 #include "../schema/PostgreSQLSchemaCache.h"
 #include <sstream>
@@ -160,16 +160,66 @@ std::string SQLUtils::safeConvert(
 
 int64_t SQLUtils::extractMicroseconds(const Value& val, int timestamp_unit) {
     int64_t value = 0;
+    if (val.IsInt64()) {
+        value = val.GetInt64();
+    }
+    else if (val.IsUint64()) {
+        value = static_cast<int64_t>(val.GetUint64());
+    }
+    else if (val.IsDouble()) {
+        value = static_cast<int64_t>(val.GetDouble());
+    }
+    else if (val.IsString()) {
+        std::string s = val.GetString();
+        if (s == "NULL" || s == "null" || s.empty()) {
+            return 0; // Trả về 0 hoặc sentinel value tùy xử lý phía trên
+        }
+        try {
+            value = std::stoll(s);
+        } catch (...) {
+            OpenSync::Logger::warn("⛔ Invalid timestamp string (not numeric): " + s);
+            return 0;
+        }
+    }
+    else {
+        OpenSync::Logger::warn("⛔ Invalid type for timestamp");
+        return 0;
+    }
+
+    switch (timestamp_unit) {
+        case 0: return value / 1000;       // milliseconds
+        case 2: return value * 1000;       // nanoseconds
+        default: return value;             // microseconds
+    }
+}
+
+/*int64_t SQLUtils::extractMicroseconds(const Value& val, int timestamp_unit) {
+    int64_t value = 0;
     if (val.IsInt64()) value = val.GetInt64();
     else if (val.IsUint64()) value = static_cast<int64_t>(val.GetUint64());
     else if (val.IsDouble()) value = static_cast<int64_t>(val.GetDouble());
+    else if (val.IsString()) {
+    	std::string s = val.GetString();
+    	if (s == "NULL" || s == "null" || s.empty()) {
+            return 0; // Trả về 0 hoặc bạn có thể dùng sentinel khác nếu muốn
+    	}
+    	try {
+            value = std::stoll(s);
+    	} catch (...) {
+            OpenSync::Logger::warn("⛔ Invalid timestamp string (not numeric): " + s);
+            return 0;
+        }
+    }
+
     else if (val.IsString()) {
         try { value = std::stoll(val.GetString()); }
         catch (...) {
             OpenSync::Logger::warn("Invalid timestamp string: " + std::string(val.GetString()));
             return 0;
         }
-    } else {
+    }
+
+    else {
         OpenSync::Logger::warn("Invalid type for timestamp");
         return 0;
     }
@@ -179,7 +229,7 @@ int64_t SQLUtils::extractMicroseconds(const Value& val, int timestamp_unit) {
         case 2: return value * 1000;
         default: return value;
     }
-}
+}*/
 
 std::string SQLUtils::convertMicrosecondsToTimestamp(double microsec) {
     return TimeUtils::convertMicrosecondsToTimestamp(static_cast<int64_t>(microsec));
@@ -217,59 +267,6 @@ std::string SQLUtils::convertToISO8601(const rapidjson::Value& val) {
 }
 
 // PostgreSQL logic
-
-/*std::string SQLUtils::safeConvertPostgreSQL(
-    const Value& val,
-    const PostgreSQLColumnInfo& colInfo,
-    const std::string& tableName,
-    const std::string& colName,
-    bool useISO8601ForDebug,
-    int timestamp_unit)
-{
-    (void) useISO8601ForDebug;
-    if (val.IsNull()) return "NULL";
-    const std::string& dataType = colInfo.dataType;
-
-    try {
-	if (dataType == "timestamp" || dataType == "timestamp without time zone") {
-	    int64_t microsec = extractMicroseconds(val, timestamp_unit);
-
-	    if (microsec < -3786825600000000 || microsec > 4102444800000000) {
-		OpenSync::Logger::warn("⛔ PostgreSQL timestamp out of range: " + std::to_string(microsec) + " (" + tableName + "." + colName + ")");
-	        return "NULL";
-	    }
-
-	    std::string formatted = TimeUtils::convertMicrosecondsToTimestamp(microsec);
-	    return "'" + formatted + "'";
-	}
-        if (dataType == "date") {
-            int64_t microsec = extractMicroseconds(val, timestamp_unit);
-            std::string formatted = TimeUtils::convertMicrosecondsToDate(microsec);
-            return "'" + formatted + "'";
-        }
-        if (dataType.find("char") != std::string::npos || dataType == "text") {
-            return val.IsString() ? quoteString(val.GetString()) : quoteString("?");
-        }
-        if (dataType.find("int") != std::string::npos || dataType.find("numeric") != std::string::npos ||
-            dataType.find("float") != std::string::npos || dataType.find("double") != std::string::npos) {
-            if (val.IsNumber()) return std::to_string(val.GetDouble());
-            if (val.IsString()) return val.GetString();
-            return "NULL";
-        }
-
-        if (val.IsString()) return quoteString(val.GetString());
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        val.Accept(writer);
-        return quoteString(buffer.GetString());
-
-    } catch (const std::exception& ex) {
-        OpenSync::Logger::warn("[PG] Failed to convert value for " + tableName + "." + colName +
-                               " with type=" + dataType + ": " + ex.what());
-        return "NULL";
-    }
-}*/
-
 std::string SQLUtils::safeConvertPostgreSQL(
     const Value& val,
     const PostgreSQLColumnInfo& colInfo,
@@ -279,7 +276,14 @@ std::string SQLUtils::safeConvertPostgreSQL(
     int timestamp_unit)
 {
     (void)useISO8601ForDebug;
-    if (val.IsNull()) return "NULL";
+
+    // ✅ Fix 1: detect null đúng
+    if (val.IsNull() || (val.IsString() && (
+            val.GetString() == std::string("NULL") ||
+            val.GetString() == std::string("null") ||
+            val.GetString() == std::string("")))) {
+        return "NULL";
+    }
 
     const std::string& dataType = colInfo.dataType;
 
@@ -287,12 +291,17 @@ std::string SQLUtils::safeConvertPostgreSQL(
         if (dataType == "timestamp" || dataType == "timestamp without time zone") {
             int64_t microsec = extractMicroseconds(val, timestamp_unit);
 
-            constexpr int64_t MIN_US = -3786825600000000;  // ~1850-01-01
-            constexpr int64_t MAX_US = 4102444800000000;   // ~2100-01-01
+            // ✅ Fix 2: skip timestamp = 0
+            if (microsec == 0) {
+                OpenSync::Logger::debug("⛔ Skipping timestamp=0 (NULL?) at " + tableName + "." + colName);
+                return "NULL";
+            }
+
+            constexpr int64_t MIN_US = -3786825600000000;
+            constexpr int64_t MAX_US = 4102444800000000;
             if (microsec < MIN_US || microsec > MAX_US) {
                 std::string formatted = TimeUtils::convertMicrosecondsToTimestamp(microsec);
-                OpenSync::Logger::warn("⛔ PostgreSQL timestamp out of range: " + formatted +
-                                       " (" + tableName + "." + colName + ")");
+                OpenSync::Logger::debug("⛔ Out-of-range timestamp: " + formatted + " at " + tableName + "." + colName);
                 return "NULL";
             }
 
@@ -302,6 +311,7 @@ std::string SQLUtils::safeConvertPostgreSQL(
 
         if (dataType == "date") {
             int64_t microsec = extractMicroseconds(val, timestamp_unit);
+            if (microsec == 0) return "NULL";
             std::string formatted = TimeUtils::convertMicrosecondsToDate(microsec);
             return "'" + formatted + "'";
         }
@@ -331,11 +341,61 @@ std::string SQLUtils::safeConvertPostgreSQL(
     }
 }
 
-
 std::string SQLUtils::toLower(const std::string& input) {
     std::string result = input;
     std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) {
         return std::tolower(c);
     });
     return result;
+}
+
+std::string SQLUtils::toUpper(const std::string& input) {
+    std::string result = input;
+    std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) {
+        return std::toupper(c);
+    });
+    return result;
+}
+
+std::string SQLUtils::buildPostgreSQLUpsertSQL(
+    const std::string& fullTable,
+    const rapidjson::Value& jsonObj)
+{
+    const auto& pkCols = PostgreSQLSchemaCache::getInstance().getPrimaryKeys(fullTable);
+    if (pkCols.empty()) {
+	OpenSync::Logger::warn("⚠️ Cannot build UPSERT SQL: missing primary key for table " + fullTable);
+        return "";
+    }
+
+    std::vector<std::string> cols, values, updates;
+    for (auto it = jsonObj.MemberBegin(); it != jsonObj.MemberEnd(); ++it) {
+        std::string col = SQLUtils::toLower(it->name.GetString());
+        const auto& val = it->value;
+
+        cols.push_back(col);
+        values.push_back(SQLUtils::safeConvert("postgresql", fullTable, col, val, false));
+
+        // Only add to update clause if not in PK
+        if (std::find(pkCols.begin(), pkCols.end(), col) == pkCols.end()) {
+            updates.push_back(col + " = EXCLUDED." + col);
+        }
+    }
+
+    std::ostringstream sql;
+    sql << "INSERT INTO " << fullTable << " ("
+        << SQLUtils::join(cols, ", ") << ") VALUES ("
+        << SQLUtils::join(values, ", ") << ")"
+        << " ON CONFLICT (" << SQLUtils::join(pkCols, ", ") << ") DO UPDATE SET "
+        << SQLUtils::join(updates, ", ");
+
+    return sql.str();
+}
+
+std::string SQLUtils::join(const std::vector<std::string>& vec, const std::string& delimiter) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < vec.size(); ++i) {
+        if (i != 0) oss << delimiter;
+        oss << vec[i];
+    }
+    return oss.str();
 }

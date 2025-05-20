@@ -1,0 +1,29 @@
+#ifndef MSSQL_CONNECTOR_H
+#define MSSQL_CONNECTOR_H
+
+#include "DBConnector.h"
+#include <memory>
+#include <string>
+#include <sql.h>
+#include <sqlext.h>
+
+class MSSQLConnector : public DBConnector {
+public:
+    MSSQLConnector(const std::string& connectionStr);
+    MSSQLConnector(const MSSQLConnector& other); // Copy constructor
+    ~MSSQLConnector();
+
+    bool connect() override;
+    bool isConnected() override;
+    bool executeQuery(const std::string& sql) override;
+    bool executeBatchQuery(const std::vector<std::string>& sqlBatch) override;
+    std::unique_ptr<DBConnector> clone() const override;  // Clone method
+
+private:
+    std::string connStr;
+    SQLHENV hEnv;
+    SQLHDBC hDbc;
+};
+
+#endif // MSSQL_CONNECTOR_H
+

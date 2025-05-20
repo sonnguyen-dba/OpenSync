@@ -47,6 +47,23 @@ bool ConfigLoader::loadConfig() {
     configDump.close();
     return true;
 }
+/*bool ConfigLoader::loadConfig() {
+    std::ifstream ifs(configFilePath);
+    if (!ifs.is_open()) {
+        std::cerr << "Error: Unable to open config file " << configFilePath << std::endl;
+        return false;
+    }
+
+    rapidjson::IStreamWrapper isw(ifs);
+    configJson.ParseStream(isw);
+    
+    if (configJson.HasParseError()) {
+        std::cerr << "Error: JSON parse error in config file." << std::endl;
+        return false;
+    }
+
+    return true;
+}*/
 
 std::string ConfigLoader::getKafkaConfig(const std::string& key) {
     if (configJson.HasMember("kafka") && configJson["kafka"].HasMember(key.c_str())) {
@@ -84,6 +101,17 @@ std::string ConfigLoader::getConfig(const std::string& key) const {
     return "";  // Trả về chuỗi rỗng nếu không tìm thấy
 }
 
+/*
+std::string ConfigLoader::getDBConfig(const std::string& dbType, const std::string& key) {
+    if (configJson.HasMember("databases") && configJson["databases"].HasMember(dbType.c_str())) {
+        const auto& dbConfig = configJson["databases"][dbType.c_str()];
+        if (dbConfig.HasMember(key.c_str())) {
+            return dbConfig[key.c_str()].GetString();
+        }
+    }
+    return "";
+}
+*/
 bool ConfigLoader::isLogISO8601Enabled() const {
     return configJson.HasMember("log_iso8601") && configJson["log_iso8601"].GetBool();
 
@@ -151,6 +179,52 @@ void ConfigLoader::dumpConfig(const std::string& outputFile, bool logToConsole) 
     OpenSync::Logger::info("✅ Configuration dumped to: " + outputFile);
 }
 
+/*void ConfigLoader::dumpConfig(const std::string& filepath, bool toConsole) const {
+    std::ostream* out = nullptr;
+    std::ofstream fileStream;
+
+    if (!toConsole) {
+        fileStream.open(filepath);
+        if (!fileStream.is_open()) {
+            std::cerr << "❌ Failed to open config dump file: " << filepath << std::endl;
+            return;
+        }
+        out = &fileStream;
+    } else {
+        out = &std::cout;
+    }
+
+    for (auto it = configJson.MemberBegin(); it != configJson.MemberEnd(); ++it) {
+        std::string key = it->name.GetString();
+        std::string valStr;
+
+        if (it->value.IsString()) {
+            valStr = it->value.GetString();
+        } else if (it->value.IsBool()) {
+            valStr = it->value.GetBool() ? "true" : "false";
+        } else if (it->value.IsInt()) {
+            valStr = std::to_string(it->value.GetInt());
+        } else if (it->value.IsDouble()) {
+            valStr = std::to_string(it->value.GetDouble());
+        } else if (it->value.IsArray()) {
+            valStr = "[array]";
+        } else if (it->value.IsObject()) {
+            valStr = "[object]";
+        } else {
+            valStr = "[unknown]";
+        }
+
+        *out << "[CONFIG] " << key << " = " << valStr << std::endl;
+    }
+
+    if (!toConsole) {
+        fileStream.close();
+        OpenSync::Logger::info("✅ Config dumped to file: " + filepath);
+    } else {
+        OpenSync::Logger::info("✅ Config printed to console");
+    }
+}*/
+
 bool ConfigLoader::shouldLogConfigToConsole() const {
     return getBool("log_config_to_console", false);  // mặc định là false nếu không khai báo
 }
@@ -165,5 +239,5 @@ std::string ConfigLoader::getConfig(const std::string& key, const std::string& d
 int ConfigLoader::getTimestampUnit() const {
     //OpenSync::Logger::debug("Returning timestamp_unit: " + std::to_string(timestamp_unit));
     //return timestamp_unit;
-    return getInt("timestamp_unit", 1);
+    return getInt("timestamp_unit", 1); 
 }

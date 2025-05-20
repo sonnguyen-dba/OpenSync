@@ -1,0 +1,45 @@
+#include "IcebergConnector.h"
+#include <iostream>
+#include <fstream>
+
+IcebergConnector::IcebergConnector(const std::string& warehousePath)
+    : warehousePath(warehousePath), connected(false) {}
+
+IcebergConnector::~IcebergConnector() {
+    disconnect();
+}
+
+bool IcebergConnector::connect() {
+    connected = true;
+    std::cout << "Connected to Iceberg warehouse at " << warehousePath << std::endl;
+    return true;
+}
+
+void IcebergConnector::disconnect() {
+    connected = false;
+}
+
+bool IcebergConnector::isConnected() {
+    return connected;
+}
+
+bool IcebergConnector::writeData(const std::vector<std::string>& jsonData) {
+    if (!isConnected()) {
+        std::cerr << "Iceberg is not connected!" << std::endl;
+        return false;
+    }
+
+    std::ofstream file(warehousePath + "/data.json", std::ios::app);
+    if (!file) {
+        std::cerr << "Failed to write to Iceberg warehouse!" << std::endl;
+        return false;
+    }
+
+    for (const auto& json : jsonData) {
+        file << json << std::endl;
+    }
+
+    file.close();
+    return true;
+}
+

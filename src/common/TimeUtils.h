@@ -33,7 +33,8 @@ namespace TimeUtils {
     // Year-to-days helper (BC)
     int64_t yearToDaysBC(int year, int month);
 
-
+    int64_t parseOracleTimestampToMicroseconds(const std::string& oracleTimestampStr);
+    int64_t parseISOTimestampToMicros(const std::string& value);
 
 
 }
