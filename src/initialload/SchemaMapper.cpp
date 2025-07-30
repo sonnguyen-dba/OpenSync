@@ -8,7 +8,7 @@ std::string SchemaMapper::mapOracleToPostgreSQL(
     const std::string& table,
     const std::unordered_map<std::string, OracleColumnInfo>& columns
 ) {
-    // Convert schema & table to lowercase để tránh lỗi schema không tồn tại
+    // Convert schema & table to lowercase to avoid schema not found errors
     std::string schemaLower = SQLUtils::toLower(schema);
     std::string tableLower = SQLUtils::toLower(table);
 
@@ -19,9 +19,8 @@ std::string SchemaMapper::mapOracleToPostgreSQL(
         if (!first) sql += ",\n";
         first = false;
 
-	std::string colLower = SQLUtils::toLower(colName);
+        std::string colLower = SQLUtils::toLower(colName);
         sql += "  " + colLower + " ";
-        //sql += "  \"" + colName + "\" ";
 
         std::string dataType = colInfo.dataType;
         std::transform(dataType.begin(), dataType.end(), dataType.begin(), ::tolower);
@@ -30,16 +29,30 @@ std::string SchemaMapper::mapOracleToPostgreSQL(
             sql += "varchar(" + std::to_string(colInfo.dataLength) + ")";
         } else if (dataType == "number") {
             if (colInfo.scale > 0) {
-                sql += "numeric(" + std::to_string(colInfo.precision) + "," + std::to_string(colInfo.scale) + ")";
-            } else if (colInfo.precision > 0) {
-                sql += "numeric(" + std::to_string(colInfo.precision) + ")";
+                sql += "decimal(" + std::to_string(colInfo.precision) + "," + std::to_string(colInfo.scale) + ")";
+            } else if (colInfo.precision == 1) {
+                sql += "boolean";
+            } else if (colInfo.precision <= 5) {
+                sql += "smallint";
+            } else if (colInfo.precision <= 10) {
+                sql += "int";
+            } else if (colInfo.precision <= 19) {
+                sql += "bigint";
             } else {
-                sql += "numeric";
+                sql += "decimal";
             }
         } else if (dataType == "date") {
             sql += "timestamp";
         } else if (dataType.find("timestamp") != std::string::npos) {
             sql += "timestamp";
+        } else if (dataType == "binary_float") {
+            sql += "real";
+        } else if (dataType == "binary_double") {
+            sql += "double precision";
+        } else if (dataType == "nclob") {
+            sql += "text";
+        } else if (dataType == "blob") {
+            sql += "bytea";
         } else {
             sql += "text";
         }
@@ -62,4 +75,3 @@ std::string SchemaMapper::mapOracleToPostgreSQL(
     sql += "\n);";
     return sql;
 }
-
