@@ -38,9 +38,9 @@ std::string SchemaMapper::mapOracleToPostgreSQL(
                 sql += "boolean";
             } else if ((colInfo.precision == 3 || colInfo.precision == 5) && colInfo.scale == 0) {
                 sql += "smallint";
-            } else if (colInfo.precision == 10 && colInfo.scale == 0) {
+            } else if (colInfo.precision <= 10 && colInfo.scale == 0) {
                 sql += "int";
-            } else if (colInfo.precision == 19 && colInfo.scale == 0) {
+            } else if (colInfo.precision <= 19 && colInfo.scale == 0) {
                 sql += "bigint";
             } else if (colInfo.scale > 0) {
                 sql += "decimal(" + std::to_string(colInfo.precision) + "," + std::to_string(colInfo.scale) + ")";
