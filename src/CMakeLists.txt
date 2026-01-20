@@ -73,7 +73,6 @@ list(APPEND ListDB db/DBConnectorFactory.cpp
 )
 
 list(APPEND ListOracle db/oracle/OracleConnector.cpp
-											 db/oracle/OracleSQLBuilder.cpp
 )
 
 list(APPEND ListPostgreSQL
@@ -114,7 +113,7 @@ list(APPEND ListWriter writer/CheckpointManager.cpp
 # ✅ Create object libraries for each source list
 add_library(LibMain OBJECT ${ListMain})
 add_library(LibApp OBJECT ${ListApp})
-add_library(LibReader OBJECT ${ListConfig})
+add_library(LibReader OBJECT ${ListReader})
 add_library(LibSchema OBJECT ${ListSchema})
 add_library(LibSqlBuilder OBJECT ${ListSqlBuilder})
 add_library(LibOracle OBJECT ${ListOracle})
