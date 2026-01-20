@@ -25,7 +25,9 @@ list(APPEND SOURCE_INCLUDE_DIRS
 	${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_CURRENT_SOURCE_DIR}/app
 	${CMAKE_CURRENT_SOURCE_DIR}/common
-	${CMAKE_CURRENT_SOURCE_DIR}/config
+	${CMAKE_CURRENT_SOURCE_DIR}/reader
+	${CMAKE_CURRENT_SOURCE_DIR}/schema
+	${CMAKE_CURRENT_SOURCE_DIR}/sqlbuilder
 	${CMAKE_CURRENT_SOURCE_DIR}/db/oracle
 	${CMAKE_CURRENT_SOURCE_DIR}/db/postgresql
 	${CMAKE_CURRENT_SOURCE_DIR}/kafka
@@ -51,22 +53,33 @@ list(APPEND ListApp app/AppInitializer.cpp )
 list(APPEND ListCommon common/Queues.cpp
 											 common/TimeUtils.cpp)
 
-list(APPEND ListConfig
-	config/ConfigLoader.cpp
-	config/FilterConfigLoader.cpp
+list(APPEND ListReader
+	reader/ConfigLoader.cpp
+	reader/FilterConfigLoader.cpp
 )
 
-list(APPEND ListDB db/DBConnectorFactory.cpp)
+list(APPEND ListSchema
+		schema/OracleSchemaCache.cpp
+		schema/PostgreSQLSchemaCache.cpp
+)
+
+list(APPEND ListSqlBuilder
+		sqlbuilder/OracleSQLBuilder.cpp
+		sqlbuilder/PostgreSQLSQLBuilder.cpp
+)
+
+list(APPEND ListDB db/DBConnectorFactory.cpp
 									 db/DBException.cpp
+)
 
 list(APPEND ListOracle db/oracle/OracleConnector.cpp
-											 db/oracle/OracleSchemaCache.cpp
-											 db/oracle//OracleSQLBuilder.cpp
+											 db/oracle/OracleSQLBuilder.cpp
+)
+
 list(APPEND ListPostgreSQL
             db/postgresql/PostgreSQLConnector.cpp
             db/postgresql/ConnectorUtils.cpp
-						db/postgresql/PostgreSQLSchemaCache.cpp
-						db/postgresql/PostgreSQLSQLBuilder.cpp)
+)
 
 list(APPEND ListKafka
 	kafka/KafkaConsumer.cpp
@@ -101,7 +114,9 @@ list(APPEND ListWriter writer/CheckpointManager.cpp
 # ✅ Create object libraries for each source list
 add_library(LibMain OBJECT ${ListMain})
 add_library(LibApp OBJECT ${ListApp})
-add_library(LibConfig OBJECT ${ListConfig})
+add_library(LibReader OBJECT ${ListConfig})
+add_library(LibSchema OBJECT ${ListSchema})
+add_library(LibSqlBuilder OBJECT ${ListSqlBuilder})
 add_library(LibOracle OBJECT ${ListOracle})
 add_library(LibPostgreSQL OBJECT ${ListPostgreSQL})
 add_library(LibDB OBJECT ${ListDB})
@@ -122,7 +137,9 @@ add_executable(OpenSync ${ListMain})
 target_link_libraries(OpenSync
     LibApp
     LibCommon
-    LibConfig
+    LibReader
+		LibSchema
+		LibSqlBuilder
 		LibDB
     LibOracle
     LibPostgreSQL
